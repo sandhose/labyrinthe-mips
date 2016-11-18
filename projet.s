@@ -7,26 +7,36 @@ str1: .asciiz "Random number: "
 TableWidth: .asciiz "Table width: "
 StoredAt: .asciiz "Stored at: "
 RetChar: .asciiz "\n"
+Menu: .asciiz "Mode:\n  1. Generate\n  2. Solve\nChoice? "
+MenuInvalid: .asciiz "Invalid choice.\n"
 .text
 .globl __start
 
 # Entry point
 __start:
-	li	$v0	4
-	la	$a0	str1
-	syscall
-
-	li	$a0	0
-	li	$a1	101
-	jal	RandomBetween
+	jal	MainMenu
+	
 	move	$a0	$v0
 	li	$v0	1
 	syscall
 
-
-	jal	CreateTable
-
 	j	exit
+	
+MainMenu:
+	li	$v0	4
+	la	$a0	Menu	# Show menu
+	syscall
+	
+	li	$v0	5
+	syscall
+	
+	beq	$v0	1	__JR
+	beq	$v0	2	__JR
+	
+	li	$v0	4
+	la	$a0	MenuInvalid
+	syscall
+	j	MainMenu
 
 # Returns a random integer included in [$a0,$a1[
 # Parameters :  $a0: Minimum
