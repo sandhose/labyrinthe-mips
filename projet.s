@@ -13,10 +13,18 @@ StoredAt:
 	.asciiz "Stored at: "
 NewLine:
 	.asciiz "\n"
-Menu:
+StrMenu:
 	.asciiz "Mode:\n  1. Generate\n  2. Solve\nChoice? "
-MenuInvalid:
+StrMenuInvalid:
 	.asciiz "Invalid choice.\n"
+StrAskSize:
+	.asciiz "Labyrinth size? "
+StrSizeInvalid:
+	.asciiz "Labyrinth size must be at least 2\n"
+StrMode:
+	.asciiz "Mode: "
+StrSize:
+	.asciiz " ; Size: "
 
 .text
 .globl __start
@@ -24,24 +32,44 @@ MenuInvalid:
 # Entry point
 __start:
 	jal	MainMenu
+	move	$s0	$v0
 
-	move	$a0	$v0
-	li	$v0	1
+	jal	AskSize
+	move	$s1	$v0
+
+	li	$v0	4
+	la	$a0	StrMode
 	syscall
 
-	li	$a0	32
+	li	$v0	1
+	move	$a0	$s0
+	syscall
+
+	li	$v0	4
+	la	$a0	StrSize
+	syscall
+
+	li	$v0	1
+	move	$a0	$s1
+	syscall
+
+	li	$v0	4
+	la	$a0	NewLine
+	syscall
+
+	move	$a0	$s1
 	li	$a1	0
 	jal	CreateTable
 
 	move	$a0	$v0
-	li	$a1	32
+	move	$a1	$s1
 	jal	PrintTable
 
 	j	exit
 
 MainMenu:
 	li	$v0	4
-	la	$a0	Menu	# Show menu
+	la	$a0	StrMenu	# Show menu
 	syscall
 
 	li	$v0	5
@@ -51,9 +79,26 @@ MainMenu:
 	beq	$v0	2	__JR
 
 	li	$v0	4
-	la	$a0	MenuInvalid
+	la	$a0	StrMenuInvalid
 	syscall
 	j	MainMenu
+
+AskSize:
+	li	$v0	4
+	la	$a0	StrAskSize # Ask labyrinth size
+	syscall
+
+	li	$v0	5
+	syscall
+
+	bgt	$v0	2	__JR
+
+	li	$v0	4
+	la	$a0	StrSizeInvalid
+	syscall
+
+	j	AskSize
+
 
 # Returns a random integer included in [$a0,$a1[
 # Parameters :  $a0: Minimum
