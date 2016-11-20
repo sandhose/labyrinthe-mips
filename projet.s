@@ -5,14 +5,12 @@ seed:
 	.word 0xdeadbeef, 0x13371337
 max_random_float:
 	.float 2147483647
-str1:
+StrRandomNumber:
 	.asciiz "Random number: "
-TableWidth:
+StrTableWidth:
 	.asciiz "Table width: "
-StoredAt:
+StrStoredAt:
 	.asciiz "Stored at: "
-NewLine:
-	.asciiz "\n"
 StrMenu:
 	.asciiz "Mode:\n  1. Generate\n  2. Solve\nChoice? "
 StrMenuInvalid:
@@ -25,6 +23,8 @@ StrMode:
 	.asciiz "Mode: "
 StrSize:
 	.asciiz " ; Size: "
+NewLine:
+	.asciiz "\n"
 
 .text
 .globl __start
@@ -32,67 +32,78 @@ StrSize:
 # Entry point
 __start:
 	jal	MainMenu
-	move	$s0	$v0
+	move	$s0	$v0	#s0: Choice
 
 	jal	AskSize
-	move	$s1	$v0
+	move	$s1	$v0	#s1: Size
 
+	#Print "Mode: N"
 	li	$v0	4
 	la	$a0	StrMode
 	syscall
-
 	li	$v0	1
 	move	$a0	$s0
 	syscall
 
+	#Print "; Size: N"
 	li	$v0	4
 	la	$a0	StrSize
 	syscall
-
 	li	$v0	1
 	move	$a0	$s1
 	syscall
 
+	#Print "\n"
 	li	$v0	4
 	la	$a0	NewLine
 	syscall
 
+	#Allocate memory
 	move	$a0	$s1
 	li	$a1	0
 	jal	CreateTable
 
+	#Print memory
 	move	$a0	$v0
 	move	$a1	$s1
 	jal	PrintTable
 
 	j	exit
 
+# Prints the menu
+# Returns : User's choice (1 or 2)
 MainMenu:
+	#Print "Mode:\n  1. Generate\n  2. Solve\nChoice? "
 	li	$v0	4
 	la	$a0	StrMenu	# Show menu
 	syscall
-
+	#Read int
 	li	$v0	5
 	syscall
 
+	#Verification
 	beq	$v0	1	__JR
 	beq	$v0	2	__JR
 
+	#Loop if invalid and print "Labyrinth size must be at least 2\n"
 	li	$v0	4
 	la	$a0	StrMenuInvalid
 	syscall
 	j	MainMenu
 
+# Asks user for the size of the labyrinth. Size must be > 2
+# Returns : $v0: Int, user's choice
 AskSize:
+	#Print "Labyrinth size? "
 	li	$v0	4
 	la	$a0	StrAskSize # Ask labyrinth size
 	syscall
-
+	#Read Integer
 	li	$v0	5
 	syscall
 
 	bgt	$v0	2	__JR
-
+	#Print "Invalid choice.\n"
 	li	$v0	4
 	la	$a0	StrSizeInvalid
 	syscall
@@ -193,14 +204,14 @@ PrintTable:
 	move	$t0	$a0 #t0: adress of the first integer in the table
 	move	$t1	$a1 #t1: width of the table (as in how many integers)
 	#printing "Table width: X"
-	la	$a0	TableWidth
+	la	$a0	StrTableWidth
 	li	$v0	4
 	syscall
 	move	$a0	$t1
 	jal	PrintInt
 
 	#printing "stored at X"
-	la	$a0	StoredAt
+	la	$a0	StrStoredAt
 	li	$v0	4
 	syscall
 	move	$a0	$t0
