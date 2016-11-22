@@ -139,9 +139,10 @@ AskSize:
 #		$v1	The length of the string
 AskFilename:
 # Prologue
-	subu	$sp	$sp	8
+	subu	$sp	$sp	12
 	sw	$ra	($sp)
 	sw	$s0	4($sp)
+	sw	$s1	8($sp)
 
 # Body
 	li	$v0	4
@@ -155,21 +156,27 @@ AskFilename:
 	move	$s0	$a0	# Save filename address somewhere
 
 	jal	StringLength
-	move	$v1	$v0
-	move	$v0	$s0
+	subiu	$s1	$v0	1	# Save filename length somewhere (with -1 offset)
 
+	addu	$t0	$s0	$s1
+	sb	$zero	($t0)
+
+	move	$v0	$s0	# Return filename address and its length
+	move	$v1	$s1
 # Epilogue
 	lw	$ra	($sp)
 	lw	$s0	4($sp)
-	addu	$sp	$sp	8
+	lw	$s1	8($sp)
+	addu	$sp	$sp	12
 	jr	$ra
 
 OpenSolveFDs:
 # Prologue
-	subu	$sp	$sp	12
+	subu	$sp	$sp	16
 	sw	$ra	($sp)
 	sw	$s0	4($sp)
 	sw	$s1	8($sp)
+	sw	$s1	12($sp)
 
 # Body
 	__OpenSolveFDs:
@@ -179,12 +186,12 @@ OpenSolveFDs:
 
 	li	$v0	13
 	move	$a0	$s0
-	la	$a1	0	# Open for reading
-	la	$a2	0
+	li	$a1	0	# Open for reading
+	li	$a2	0
 	syscall
 
 	bltz	$v0	__OpenError	# Error while reading file
-	move	$s0	$v0	# Save file descriptor for later
+	move	$s2	$v0	# Save file descriptor for later
 
 	jal	StringLength
 	move	$a0	$v0
@@ -194,8 +201,9 @@ OpenSolveFDs:
 
 # Epilogue
 	lw	$ra	($sp)
-	lw	$s0	4($s0)
-	lw	$s1	8($s1)
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
 	jr	$ra
 
 	__OpenError:
@@ -222,7 +230,7 @@ StringLength:
 # Returns : $v0: Random int
 RandomBetween:
 # Prologue
-	subu	$sp	$sp	12
+	subu	$sp	$sp	15
 	sw	$ra	($sp)
 	swc1	$f0	4($sp)
 	swc1	$f1	8($sp)
