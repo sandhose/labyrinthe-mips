@@ -24,13 +24,15 @@ StrAskSize:
 StrSizeInvalid:
 	.asciiz "Labyrinth size must be at least 3\n"
 StrAskFilename:
-	.asciiz	"File name? "
+	.asciiz "File name? "
 StrMode:
 	.asciiz "Mode: "
 StrSize:
 	.asciiz " ; Size: "
 StrOpenError:
 	.asciiz "Can't open file\n"
+StrSpace:
+	.asciiz " "
 NewLine:
 	.asciiz "\n"
 
@@ -40,7 +42,7 @@ NewLine:
 # Entry point
 __start:
 	jal	MainMenu
-	move	$s0	$v0	#s0: Choice
+	move	$s0	$v0	# s0: Choice
 
 	beq	$v0	1	GenerateMode
 	beq	$v0	2	SolveMode
@@ -54,7 +56,7 @@ GenerateMode:
 
 	# Display some stuff (mode + size)
 
-	#Print "Mode: N"
+	# Print "Mode: N"
 	li	$v0	4
 	la	$a0	StrMode
 	syscall
@@ -62,27 +64,27 @@ GenerateMode:
 	move	$a0	$s0
 	syscall
 
-	#Print "; Size: N"
+	# Print "; Size: N"
 	li	$v0	4
 	la	$a0	StrSize
 	syscall
 	li	$v0	1
-	move	$a0	$s1
+	move	$a0	$s0
 	syscall
 
-	#Print "\n"
+	# Print "\n"
 	li	$v0	4
 	la	$a0	NewLine
 	syscall
 
-	#Allocate memory
-	move	$a0	$s1
+	# Allocate memory
+	move	$a0	$s0
 	li	$a1	0
 	jal	CreateTable
 
-	#Print memory
+	# Print memory
 	move	$a0	$v0
-	move	$a1	$s1
+	move	$a1	$s0
 	jal	PrintTable
 
 	j	exit
@@ -96,15 +98,15 @@ SolveMode:
 # Prints the menu
 # Returns : User's choice (1 or 2)
 MainMenu:
-	#Print "Mode:\n  1. Generate\n  2. Solve\nChoice? "
+	# Print "Mode:\n  1. Generate\n  2. Solve\nChoice? "
 	li	$v0	4
 	la	$a0	StrMenu	# Show menu
 	syscall
-	#Read int
+	# Read int
 	li	$v0	5
 	syscall
 
-	#Verification
+	# Verification
 	beq	$v0	1	__JR
 	beq	$v0	2	__JR
 
@@ -117,11 +119,11 @@ MainMenu:
 # Asks user for the size of the labyrinth. Size must be > 2
 # Returns : $v0: Int, user's choice
 AskSize:
-	#Print "Labyrinth size? "
+	# Print "Labyrinth size? "
 	li	$v0	4
 	la	$a0	StrAskSize # Ask labyrinth size
 	syscall
-	#Read Integer
+	# Read Integer
 	li	$v0	5
 	syscall
 
@@ -136,7 +138,7 @@ AskSize:
 
 # Ask the user for a filename
 # @returns	$v0	The address containing the null-terminated string
-#		$v1	The length of the string
+# 		$v1	The length of the string
 AskFilename:
 # Prologue
 	subu	$sp	$sp	12
@@ -230,7 +232,7 @@ StringLength:
 
 # Returns a random integer included in [$a0,$a1[
 # Parameters :  $a0: Minimum
-#				$a1: Maximum
+# 				$a1: Maximum
 # Pre-conditions : 0 <= $a0 < $a1
 # Returns : $v0: Random int
 RandomBetween:
@@ -262,6 +264,8 @@ RandomBetween:
 	addu	$sp	$sp	12
 	jr	$ra
 
+
+
 # Function random_generator
 # Returns a random integer between 0 and 2^32-1
 # Parameters :
@@ -286,100 +290,146 @@ random_generator:
 # Epilogue
 	jr	$ra
 
+
+
 # Function CreateTable
 # Pre-conditions: $a0 >=0
 # Parameters :	$a0: Table width (as in how many integers)
-#				$a1: 0: Sorted in ascending order,
-#					 1: Sorted in descending order,
-#					 2: Scrambled
+# 				$a1: 0: Sorted in ascending order,
+# 					 1: Sorted in descending order,
+# 					 2: Scrambled
 # Returns : Adress of the first int in the table in $v0
 CreateTable:
-	move	$t0	$a0
-	mul	$a0	$a0	4	#width in bytes
-	li	$v0	9		#malloc of size 4*n
+	mul	$a0	$a0	$a0
+	move	$t0	$a0		# $t0: width*width
+	mul	$a0	$a0	4	# $a0: width squared and in bytes
+	li	$v0	9		# malloc of size 4*n*n
 	syscall
-	move	$t1	$v0	#t1: address
-	li	$t2	0	#t2: offset
-	li	$t3	15 	#t3: stored constant
+				# v0: address
+	li	$t2	0	# t2: offset
+	li	$t3	15 	# t3: stored constant
 	__Loop_Increasing:
 		beq	$t2	$a0	__JR
-		addu	$t4	$t1	$t2 #t4: adress + offset
+		addu	$t4	$v0	$t2 # t4: adress + offset
 		sw	$t3	0($t4)
 		addu	$t2	$t2	4
 		j	__Loop_Increasing
 
+
+
 # Function PrintTable
 # Parameters : 	$a0: adress of the first integer in the table
-#		$a1: width of the table (as in how many integers)
+# 		$a1: width of the table (as in how many integers)
 # Pre-conditions: $a0 >=0
 # Returns: -
 PrintTable:
-#Prologue:
+# Prologue:
 	subu	$sp	$sp	4
 	sw	$ra	0($sp)
-#Body:
-	move	$t0	$a0 #t0: adress of the first integer in the table
-	move	$t1	$a1 #t1: width of the table (as in how many integers)
-	#printing "Table width: X"
+# Body:
+	# mul	$a1 	$a1	$a1
+	move	$t0	$a0 # t0: adress of the first integer in the table
+	move	$t1	$a1 # t1: width of the table (as in how many integers wide)
+	# printing "Table width: X"
 	la	$a0	StrTableWidth
 	li	$v0	4
 	syscall
 	move	$a0	$t1
 	jal	PrintInt
 
-	#printing "stored at X"
+	# printing "stored at X"
 	la	$a0	StrStoredAt
 	li	$v0	4
 	syscall
 	move	$a0	$t0
 	jal	PrintInt
 
-	#Printing table's content
-	li	$t2	4
-	mul	$t1	$t1	$t2 	#$t1: Bytes needed to store the table
-	li	$t3	0 		#$t3: offset
-	#add	$t4	$t1	$t0 	#$t4: end adress of the table
+	# Printing table's content
+				# $t1: width
+	li	$t2	0	# $t2: line counter (from 1 to width)
+	li	$t3	0 	# $t3: offset (in bytes, so, from 0 to 4*width*width). As opposed to $t2 and $t4 it is never reset
+	li	$t4	0	# $t4
 	__Loop_PrintTable:
-		bge	$t3	$t1	Fin__Loop_PrintTable
-		add	$t4	$t0	$t3	#Adress of the first int of the table + offset
-		lw	$a0	0($t4)
-		jal	PrintInt
-		addi	$t3	$t3	4	#increment offset
-		j __Loop_PrintTable
-Fin__Loop_PrintTable:
-	#print newline
+		bge	$t2	$t1	__Fin_Loop_PrintTable
+		li	$t5	0	# $t5: char counter (from 1 to width)
+		addi	$t2	$t2	1
+		__Loop_PrintLine:
+			bge	$t5	$t1	__Fin_Loop_PrintLine
+			add	$t4	$t0	$t3	# t4: Adress of the first int of the table + offset
+			# print integer in memory at adress $t4
+			lw	$a0	0($t4)
+			li	$v0	1
+			syscall
+			jal	PrintSpace
+			
+			addi	$t3	$t3	4	# increment offset
+			addi	$t5	$t5	1
+			j	__Loop_PrintLine
+		__Fin_Loop_PrintLine:
+		jal	PrintNewline
+		j	__Loop_PrintTable
+__Fin_Loop_PrintTable:
+	# print newline
 	la	$a0	NewLine
 	li	$v0	4
 	syscall
-#Epilogue:
+# Epilogue:
 	lw	$ra	0($sp)
 	addu	$sp	$sp	4
 	jr	$ra
+
+
+
+# Function PrintNewline
+# Parameters: 
+# Pre-conditions: 
+# Returns:
+PrintSpace:
+# Body:
+	la	$a0	StrSpace
+	li	$v0	4
+	syscall
+# Epilogue:
+	jr	$ra	
+
+
+
+# Function PrintNewline
+# Parameters: 
+# Pre-conditions: 
+# Returns:
+PrintNewline:
+# Body:
+	la	$a0	NewLine
+	li	$v0	4
+	syscall
+# Epilogue:
+	jr	$ra	
+
+
 
 # Function PrintInt
 # Parameters: $a0: Int to print
 # Pre-conditions:
 # Returns:
+	
 PrintInt:
-#Prologue:
-	subu	$sp	$sp	4
-	sw	$a0	0($sp)
-
-#Body:
+# Body:
 	li	$v0	1
 	syscall
 
 	la	$a0	NewLine
 	li	$v0	4
 	syscall
-
-#Epilogue:
-	lw	$a0	0($sp)
-	addu	$sp	$sp	4
+# Epilogue:
 	jr	$ra
+
+
 
 __JR:
 	jr	$ra
+
+
 
 exit:
 	li	$v0	10
