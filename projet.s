@@ -7,7 +7,7 @@ max_random_float:
 	.float 2147483647.0
 Filename:
 	.space 255
-SolveSuffix:
+StrSolvedSuffix:
 	.asciiz ".resolu"
 StrRandomNumber:
 	.asciiz "Random number: "
@@ -156,10 +156,16 @@ AskFilename:
 	move	$s0	$a0	# Save filename address somewhere
 
 	jal	StringLength
-	subiu	$s1	$v0	1	# Save filename length somewhere (with -1 offset)
+	move	$s1	$v0	# Save filename length somewhere
 
-	addu	$t0	$s0	$s1
-	sb	$zero	($t0)
+	# Let's check last byte if it is a newline (\n), and replace it with a null terminator (\0)
+	addu	$t0	$s0	$s1	# The address of the end of the string
+	lb	$t1	-1($t0)	# Save last string byte
+	lb	$t2	NewLine
+	bne	$t1	$t2	__NoNewLine	# Check if last byte is a newline
+	sb	$zero	-1($t0)
+	subu	$s1	$s1	1	# String length is now one less
+	__NoNewLine:
 
 	move	$v0	$s0	# Return filename address and its length
 	move	$v1	$s1
@@ -221,7 +227,6 @@ StringLength:
 		addi	$v0	$v0	1
 		addi	$a0	$a0	1
 		j	__StringLength
-
 
 # Returns a random integer included in [$a0,$a1[
 # Parameters :  $a0: Minimum
