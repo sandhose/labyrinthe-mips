@@ -4,7 +4,11 @@
 seed:
 	.word 0xdeadbeef, 0x13371337
 max_random_float:
-	.float 2147483647
+	.float 2147483647.0
+Filename:
+	.space 255
+SolveSuffix:
+	.asciiz ".resolu"
 str1:
 	.asciiz "Random number: "
 TableWidth:
@@ -20,11 +24,15 @@ StrMenuInvalid:
 StrAskSize:
 	.asciiz "Labyrinth size? "
 StrSizeInvalid:
-	.asciiz "Labyrinth size must be at least 2\n"
+	.asciiz "Labyrinth size must be at least 3\n"
+StrAskFilename:
+	.asciiz	"File name? "
 StrMode:
 	.asciiz "Mode: "
 StrSize:
 	.asciiz " ; Size: "
+StrOpenError:
+	.asciiz "Can't open file\n"
 
 .text
 .globl __start
@@ -32,11 +40,18 @@ StrSize:
 # Entry point
 __start:
 	jal	MainMenu
+
+	beq	$v0	1	GenerateMode
+	beq	$v0	2	SolveMode
+
+GenerateMode:
+	jal	AskSize
 	move	$s0	$v0
 
-	jal	AskSize
+	jal	AskFilename
 	move	$s1	$v0
 
+	# Display some stuff (mode + size)
 	li	$v0	4
 	la	$a0	StrMode
 	syscall
@@ -67,6 +82,12 @@ __start:
 
 	j	exit
 
+SolveMode:
+	jal	OpenSolveFDs
+	move	$s1	$v0
+
+	j	exit
+
 MainMenu:
 	li	$v0	4
 	la	$a0	StrMenu	# Show menu
@@ -78,6 +99,7 @@ MainMenu:
 	beq	$v0	1	__JR
 	beq	$v0	2	__JR
 
+	# Loop until the choice is valid
 	li	$v0	4
 	la	$a0	StrMenuInvalid
 	syscall
@@ -93,11 +115,92 @@ AskSize:
 
 	bgt	$v0	2	__JR
 
+	# Labyrinth size must be > 2, loop until the choice is valid
 	li	$v0	4
 	la	$a0	StrSizeInvalid
 	syscall
 
 	j	AskSize
+
+# Ask the user for a filename
+# @returns	$v0	The address containing the null-terminated string
+#		$v1	The length of the string
+AskFilename:
+# Prologue
+	subu	$sp	$sp	8
+	sw	$ra	($sp)
+	sw	$s0	4($sp)
+
+# Body
+	li	$v0	4
+	la	$a0	StrAskFilename
+	syscall
+
+	li	$v0	8
+	la	$a0	Filename
+	li	$a1	255
+	syscall
+	move	$s0	$a0	# Save filename address somewhere
+
+	jal	StringLength
+	move	$v1	$v0
+	move	$v0	$s0
+
+# Epilogue
+	lw	$ra	($sp)
+	lw	$s0	4($sp)
+	addu	$sp	$sp	8
+	jr	$ra
+
+OpenSolveFDs:
+# Prologue
+	subu	$sp	$sp	12
+	sw	$ra	($sp)
+	sw	$s0	4($sp)
+	sw	$s1	8($sp)
+
+# Body
+	__OpenSolveFDs:
+	jal	AskFilename
+	move	$s0	$v0	# Store the address of the filename
+	move	$s1	$v1	# Store the length of this filename
+
+	li	$v0	13
+	move	$a0	$s0
+	la	$a1	0	# Open for reading
+	la	$a2	0
+	syscall
+
+	bltz	$v0	__OpenError	# Error while reading file
+	move	$s0	$v0	# Save file descriptor for later
+
+	jal	StringLength
+	move	$a0	$v0
+	li	$v0	1
+	syscall
+
+
+# Epilogue
+	lw	$ra	($sp)
+	lw	$s0	4($s0)
+	lw	$s1	8($s1)
+	jr	$ra
+
+	__OpenError:
+		li	$v0	4
+		la	$a0	StrOpenError
+		syscall
+		j	__OpenSolveFDs
+
+
+StringLength:
+	li	$v0	0	# Counter
+	__StringLength:
+		lb	$t0	0($a0)
+		beqz	$t0	__JR	# Here's the null terminator
+		addi	$v0	$v0	1
+		addi	$a0	$a0	1
+		j	__StringLength
 
 
 # Returns a random integer included in [$a0,$a1[
@@ -256,3 +359,5 @@ __JR:
 exit:
 	li	$v0	10
 	syscall
+
+# vim: sw=8 ts=8 noet
