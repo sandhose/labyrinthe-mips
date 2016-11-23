@@ -178,6 +178,20 @@ AskFilename:
 	addu	$sp	$sp	12
 	jr	$ra
 
+# Adds the resolved suffix to a given ($a0) string of a given ($a1) length
+AddSolvedSuffix:
+	la	$t1	StrSolvedSuffix
+	addu	$t2	$a0	$a1
+
+	__Loop_AddSolvedSuffix:
+		lb	$t3	($t1)
+		sb	$t3	($t2)
+		addi	$t1	$t1	1
+		addi	$t2	$t2	1
+		bne	$t3	0	__Loop_AddSolvedSuffix
+
+	jr	$ra
+
 OpenSolveFDs:
 # Prologue
 	subu	$sp	$sp	16
@@ -201,11 +215,19 @@ OpenSolveFDs:
 	bltz	$v0	__OpenError	# Error while reading file
 	move	$s2	$v0	# Save file descriptor for later
 
-	jal	StringLength
-	move	$a0	$v0
-	li	$v0	1
+	move	$a0	$s0
+	move	$a1	$s1
+	jal	AddSolvedSuffix
+
+	li	$v0	13
+	move	$a0	$s0
+	li	$a1	1
+	li	$a2	0
 	syscall
 
+	bltz	$v0	__OpenError	# Error while writing file
+	move	$v1	$v0
+	move	$v0	$s2
 
 # Epilogue
 	lw	$ra	($sp)
@@ -361,7 +383,7 @@ PrintTable:
 			li	$v0	1
 			syscall
 			jal	PrintSpace
-			
+
 			addi	$t3	$t3	4	# increment offset
 			addi	$t5	$t5	1
 			j	__Loop_PrintLine
@@ -381,8 +403,8 @@ __Fin_Loop_PrintTable:
 
 
 # Function PrintNewline
-# Parameters: 
-# Pre-conditions: 
+# Parameters:
+# Pre-conditions:
 # Returns:
 PrintSpace:
 # Body:
@@ -390,13 +412,13 @@ PrintSpace:
 	li	$v0	4
 	syscall
 # Epilogue:
-	jr	$ra	
+	jr	$ra
 
 
 
 # Function PrintNewline
-# Parameters: 
-# Pre-conditions: 
+# Parameters:
+# Pre-conditions:
 # Returns:
 PrintNewline:
 # Body:
@@ -404,7 +426,7 @@ PrintNewline:
 	li	$v0	4
 	syscall
 # Epilogue:
-	jr	$ra	
+	jr	$ra
 
 
 
@@ -412,7 +434,7 @@ PrintNewline:
 # Parameters: $a0: Int to print
 # Pre-conditions:
 # Returns:
-	
+
 PrintInt:
 # Body:
 	li	$v0	1
