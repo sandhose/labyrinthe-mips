@@ -5,7 +5,7 @@ seed:
 	.word 0xdeadbeef, 0x13371337
 max_random_float:
 	.float 2147483647.0
-Filename:
+Buffer:
 	.space 255
 StrSolvedSuffix:
 	.asciiz ".resolu"
@@ -91,7 +91,9 @@ GenerateMode:
 
 SolveMode:
 	jal	OpenSolveFDs
-	move	$s1	$v0
+	move	$a0	$v0
+
+	jal	ParseFile
 
 	j	exit
 
@@ -152,7 +154,7 @@ AskFilename:
 	syscall
 
 	li	$v0	8
-	la	$a0	Filename
+	la	$a0	Buffer
 	li	$a1	255
 	syscall
 	move	$s0	$a0	# Save filename address somewhere
@@ -251,6 +253,65 @@ StringLength:
 		addi	$v0	$v0	1
 		addi	$a0	$a0	1
 		j	__StringLength
+
+ParseInt:
+	li	$t0	0	# Value
+	li	$t1	0	# Bytes read
+
+	# $a0 is the file descriptor already passed in arguments
+	la	$a1	Buffer	# Buffer
+	li	$a2	1
+
+	__Loop_ParseInt:
+		# Read one char
+		li	$v0	14
+		syscall
+		blt	$v0	1	__End_ParseInt	# Check if exactly 1 char was read
+
+		lbu	$t2	($a1)	# Read from the buffer
+		bltu	$t2	48	__CheckEnd_ParseInt
+		bgtu	$t2	57	__CheckEnd_ParseInt
+		addu	$t1	$t1	1	# Add read char to the byte read count
+
+		subu	$t2	$t2	48
+		mulu	$t0	$t0	10
+		addu	$t0	$t0	$t2
+		j	__Loop_ParseInt
+
+	__CheckEnd_ParseInt:
+	beqz	$t1	__Loop_ParseInt	# Check if a byte was read, return in loop if not
+
+	__End_ParseInt:
+	move	$v0	$t0
+	jr	$ra
+
+ParseFile:
+	subu	$sp	$sp	8
+	sw	$ra	($sp)
+	sw	$s1	4($sp)
+	move	$s1	$a0
+
+	jal	ParseInt
+	move	$a0	$v0
+	li	$v0	1
+	syscall
+
+	move	$a0	$s1
+	jal	ParseInt
+	move	$a0	$v0
+	li	$v0	1
+	syscall
+
+	move	$a0	$s1
+	jal	ParseInt
+	move	$a0	$v0
+	li	$v0	1
+	syscall
+
+	lw	$ra	($sp)
+	lw	$s1	4($sp)
+	addu	$sp	$sp	8
+	jr	$ra
 
 # Returns a random integer included in [$a0,$a1[
 # Parameters :  $a0: Minimum
