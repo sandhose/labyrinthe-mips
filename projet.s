@@ -7,6 +7,12 @@ max_random_float:
 	.float 2147483647.0
 Buffer:
 	.space 255
+Size:
+	.align 2
+	.space 1
+Address:
+	.align 2
+	.space 1
 StrSolvedSuffix:
 	.asciiz ".resolu"
 StrRandomNumber:
@@ -41,6 +47,17 @@ NewLine:
 
 # Entry point
 __start:
+	#get os time in $v0
+	li	$v0	30
+	syscall
+	li	$a0	0
+
+	#set seed to os time
+	move	$a1	$v0
+	li	$v0	40
+	#li	$a0	0 #redundant
+	syscall
+
 	jal	MainMenu
 	move	$s0	$v0	# s0: Choice
 
@@ -79,12 +96,23 @@ GenerateMode:
 
 	# Allocate memory
 	move	$a0	$s0
+	sw	$a0	Size
 	li	$a1	0
 	jal	CreateTable
+	sw	$v0	Address
+
+	# Parameters :	$a0: Adress of the first integer in the table
+	#		$a1: Table width
+	# 		$a2: t[x]
+	#		$a3: y
+	li	$a0	0
+	li	$a1	2
+	li	$a2	2
+	jal	SetBox
+
+	jal	GenerateExits
 
 	# Print memory
-	move	$a0	$v0
-	move	$a1	$s0
 	jal	PrintTable
 
 	j	exit
@@ -313,74 +341,10 @@ ParseFile:
 	addu	$sp	$sp	8
 	jr	$ra
 
-# Returns a random integer included in [$a0,$a1[
-# Parameters :  $a0: Minimum
-# 				$a1: Maximum
-# Pre-conditions : 0 <= $a0 < $a1
-# Returns : $v0: Random int
-RandomBetween:
-# Prologue
-	subu	$sp	$sp	15
-	sw	$ra	($sp)
-	swc1	$f0	4($sp)
-	swc1	$f1	8($sp)
-# Body
-	jal	random_generator
-	andi	$v0	$v0	0x7fffffff
-	mtc1	$v0	$f0
-	cvt.s.w	$f0	$f0
-	lwc1	$f1	max_random_float
-	div.s	$f0	$f0	$f1
-	sub	$a1	$a1	$a0
-	mtc1	$a1	$f1
-	cvt.s.w	$f1	$f1
-	mul.s	$f0	$f0	$f1
-	mtc1	$a0	$f1
-	cvt.s.w	$f1	$f1
-	add.s	$f0	$f0	$f1
-	cvt.w.s	$f0	$f0
-	mfc1	$v0	$f0
-# Epilogue
-	lw	$ra	($sp)
-	lwc1	$f0	4($sp)
-	lwc1	$f1	8($sp)
-	addu	$sp	$sp	12
-	jr	$ra
-
-
-
-# Function random_generator
-# Returns a random integer between 0 and 2^32-1
-# Parameters :
-# Returns : $v0: Random int
-random_generator:
-# Prologue
-# Body
-	lw	$t0	seed
-	andi	$t1	$t0	65535
-	mulu	$t1	$t1	36969
-	srl	$t2	$t0	16
-	addu	$t0	$t1	$t2
-	lw	$t1	seed+4
-	andi	$t2	$t1	65535
-	mulu	$t2	$t2	18000
-	srl	$t3	$t1	16
-	addu	$t1	$t2	$t3
-	sw	$t0	seed
-	sw	$t1	seed+4
-	sll	$v0	$t0	16
-	addu	$v0	$v0	$t1
-# Epilogue
-	jr	$ra
-
-
 
 # Function CreateTable
 # Pre-conditions: $a0 >=0
 # Parameters :	$a0: Table width (as in how many integers)
-# 				$a1: 0: Sorted in ascending order,
-# 					 1: Sorted in descending order,
-# 					 2: Scrambled
 # Returns : Adress of the first int in the table in $v0
 CreateTable:
 	mul	$a0	$a0	$a0
@@ -390,13 +354,51 @@ CreateTable:
 	syscall
 				# v0: address
 	li	$t2	0	# t2: offset
-	li	$t3	15 	# t3: stored constant
+	li	$t3	15 	# t3: constant to store
 	__Loop_Increasing:
 		beq	$t2	$a0	__JR
-		addu	$t4	$v0	$t2 # t4: adress + offset
+		addu	$t4	$v0	$t2	# t4: adress + offset
 		sw	$t3	0($t4)
 		addu	$t2	$t2	4
 		j	__Loop_Increasing
+
+
+
+# Function SetBox
+# Pre-conditions:
+# Parameters :	$a0: int
+#		$a1: x
+#		$a2: y
+# Returns : -
+SetBox:
+	lw	$t0	Address
+	lw	$t1	Size
+	mul	$t3	$a2	$t1	#t3: offset = line number * table width (to select the nth line)
+	add	$t3	$t3	$a1	#t3: add to that the column number (nth line + nth column)
+	mul	$t3	$t3	4 	#t3: convert to bytes
+	add	$t4	$t0	$t3	#t4: address + offset
+	sw	$a0	0($t4)
+	jr	$ra
+
+
+
+# Function GenerateExits
+# Pre-conditions:
+# Parameters :
+# Returns : -
+GenerateExits:
+	lw	$t0	Address
+	lw	$t1	Size
+
+	li	$a0	0
+	li	$a1	1
+	jal	RandomBetween
+	mul	$t2	$v0	5	#t2 = rand(0,1) * 5
+					#either 0 or 5
+
+	subu	$a1	$t1	1
+	jal	RandomBetween
+	move	$t2	$v0
 
 
 
@@ -411,8 +413,8 @@ PrintTable:
 	sw	$ra	0($sp)
 # Body:
 	# mul	$a1 	$a1	$a1
-	move	$t0	$a0 # t0: adress of the first integer in the table
-	move	$t1	$a1 # t1: width of the table (as in how many integers wide)
+	lw	$t0	Address
+	lw	$t1	Size
 	# printing "Table width: X"
 	la	$a0	StrTableWidth
 	li	$v0	4
@@ -508,6 +510,43 @@ PrintInt:
 	jr	$ra
 
 
+# Returns a random integer included in [$a0,$a1[
+# Parameters :  $a0: Minimum
+# 		$a1: Maximum
+# Pre-conditions : 0 <= $a0 < $a1
+# Returns : $v0: Random int
+RandomBetween:
+#Prologue
+	subu	$sp	$sp	4
+	sw	$a0	0($sp)
+#Body
+	#the syscall takes for granted that we generate between 0 and n
+	#we want an int between n and m
+	#procedure: 	max = max - min
+	#		number = syscall(max)
+	#		number = number + min
+	addi	$a1	$a1	1
+	move	$t0	$a0		#t0: minimum
+	sub	$a0	$a1	$a0	#a0: maximum-min
+	li	$v0	42
+	syscall
+
+	add	$v0	$a0	$t0
+
+#Epilogue
+	lw	$a0	0($sp)
+	addu	$sp	$sp	4
+	jr	$ra
+
+
+
+# Function random_generator
+# Returns a random integer between 0 and 2^32-1
+# Parameters :
+# Returns : $v0: Random int
+random_generator:
+	li	$v0	41
+	jr	$ra
 
 __JR:
 	jr	$ra
