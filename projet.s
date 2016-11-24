@@ -313,15 +313,15 @@ CreateTable:
 SetBox:
 	lw	$t0	Address
 	lw	$t1	Size
-	mul	$t3	$a2	$t1	#t3: line number * table width (to select the nth line)
-	add	$t3	$t3	$a1	#t3: add to that the column number
+	mul	$t3	$a2	$t1	#t3: offset = line number * table width (to select the nth line)
+	add	$t3	$t3	$a1	#t3: add to that the column number (nth line + nth column)
 	mul	$t3	$t3	4 	#t3: convert to bytes
 	add	$t4	$t0	$t3	#t4: address + offset
 	sw	$a0	0($t4)
 	jr	$ra
 
 
-### UNFINISHED
+
 # Function GenerateExits
 # Pre-conditions: 
 # Parameters :
@@ -330,15 +330,15 @@ GenerateExits:
 	lw	$t0	Address
 	lw	$t1	Size
 	
-	li	$a0	0
+	li	$a0	0 
 	li	$a1	1
-	jal	RandomBetween
-	move	$t2	$v0
+	jal	RandomBetween 
+	mul	$t2	$v0	5	#t2 = rand(0,1) * 5
+					#either 0 or 5
 	
 	subu	$a1	$t1	1
 	jal	RandomBetween
 	move	$t2	$v0
-###
 
 
 
@@ -456,6 +456,10 @@ PrintInt:
 # Pre-conditions : 0 <= $a0 < $a1
 # Returns : $v0: Random int
 RandomBetween:
+#Prologue
+	subu	$sp	$sp	4
+	sw	$a0	0($sp)
+#Body
 	#the syscall takes for granted that we generate between 0 and n
 	#we want an int between n and m
 	#procedure: 	max = max - min
@@ -468,6 +472,10 @@ RandomBetween:
 	syscall
 	
 	add	$v0	$a0	$t0
+	
+#Epilogue
+	lw	$a0	0($sp)
+	addu	$sp	$sp	4
 	jr	$ra
 
 
