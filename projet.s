@@ -282,6 +282,9 @@ StringLength:
 		addi	$a0	$a0	1
 		j	__StringLength
 
+# Parse the next int in a file
+# @param	$a0	The file descriptor
+# @returns	$v0	The int read
 ParseInt:
 	li	$t0	0	# Value
 	li	$t1	0	# Bytes read
@@ -313,32 +316,48 @@ ParseInt:
 	move	$v0	$t0
 	jr	$ra
 
+# Parse a labyrinth file
+# @param	$a0	file descriptor
+# @returns	$v0	labyrinth size
+# @returns	$v1	labyrinth address
 ParseFile:
-	subu	$sp	$sp	8
+	subu	$sp	$sp	24
 	sw	$ra	($sp)
-	sw	$s1	4($sp)
-	move	$s1	$a0
+	sw	$s0	4($sp)	# $s0: file descriptor
+	sw	$s1	8($sp)	# $s1: table size
+	sw	$s2	12($sp)	# $s2: max offset ($s1 * $s1 * 4)
+	sw	$s3	16($sp)	# $s3: table address
+	sw	$s4	20($sp)	# $s4: current offset
+	move	$s0	$a0
 
 	jal	ParseInt
-	move	$a0	$v0
-	li	$v0	1
-	syscall
-
-	move	$a0	$s1
-	jal	ParseInt
-	move	$a0	$v0
-	li	$v0	1
-	syscall
+	move	$s1	$v0	# Save table size
+	mulu	$s2	$s1	$s1
+	mulu	$s2	$s2	4	# Max offset
 
 	move	$a0	$s1
-	jal	ParseInt
-	move	$a0	$v0
-	li	$v0	1
-	syscall
+	jal	CreateTable
+	move	$s3	$v0	# Save table
+
+	li	$s4	0
+	__Loop_ParseFile:
+		move	$a0	$s0
+		jal	ParseInt
+		addu	$t0	$s3	$s4
+		sw	$v0	($t0)
+		addi	$s4	$s4	4
+		blt	$s4	$s2	__Loop_ParseFile
+
+	move	$v0	$s1
+	move	$v1	$s3
 
 	lw	$ra	($sp)
-	lw	$s1	4($sp)
-	addu	$sp	$sp	8
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
+	lw	$s3	16($sp)
+	lw	$s4	20($sp)
+	addu	$sp	$sp	24
 	jr	$ra
 
 
