@@ -364,7 +364,7 @@ ParseFile:
 # Function CreateTable
 # Pre-conditions: $a0 >=0
 # Parameters :	$a0: Table width (as in how many integers)
-# Returns : Adress of the first int in the table in $v0
+# Returns : Address of the first int in the table in $v0
 CreateTable:
 	mul	$a0	$a0	$a0
 	move	$t0	$a0		# $t0: width*width
@@ -376,7 +376,7 @@ CreateTable:
 	li	$t3	15 	# t3: constant to store
 	__Loop_Increasing:
 		beq	$t2	$a0	__JR
-		addu	$t4	$v0	$t2	# t4: adress + offset
+		addu	$t4	$v0	$t2	# t4: address + offset
 		sw	$t3	0($t4)
 		addu	$t2	$t2	4
 		j	__Loop_Increasing
@@ -406,23 +406,86 @@ SetBox:
 # Parameters :
 # Returns : -
 GenerateExits:
-	lw	$t0	Address
-	lw	$t1	Size
+#Prologue
+	subu	$sp	$sp	20
+	sw	$ra	0($sp)
+	sw	$s1	4($sp)
+	sw	$s2	8($sp)
+	sw	$s3	12($sp)
+	sw	$s4	16($sp)
+
+#Body
+	lw	$s0	Address
+	lw	$s1	Size
+	subu	$s1	$s1	1
 
 	li	$a0	0
 	li	$a1	1
 	jal	RandomBetween
-	mul	$t2	$v0	5	#t2 = rand(0,1) * 5
-					#either 0 or 5
+	mul	$s2	$v0	$s1	#s2 = rand(0,1) * Size
+					#s2 = either first or last column
 
-	subu	$a1	$t1	1
 	jal	RandomBetween
-	move	$t2	$v0
+	move	$s5	$v0		#s5 = either 0 or 1
+					#will determine if the start & exit points are on top/bottom or left/right
+
+	move	$a1	$s1
+	jal	RandomBetween
+	move	$s3	$v0		#s3 = rand(0,Size)
+					#s3 = any row
+	move	$a1	$s1
+	jal	RandomBetween
+	move	$s6	$v0		#s6 = rand(0,Size)
+					#s6 = any row
+
+	#if x == Size: x=0; else: x=Size
+	beq	$s2	$s1	__GenerateExits_Li_0
+		move	$s4	$s1
+		j	__GenerateExits_EndIf_1
+	__GenerateExits_Li_0:
+		li	$s4	0
+	__GenerateExits_EndIf_1:
+
+	#Maybe swap x and y
+	#If t4 == 0: swap; else: don't swap
+	#t4 being either 0 or 1 (random)
+
+	beqz	$s5	__GenerateExits_LeftRight
+		#case: don't swap (top/bottom)
+		li	$a0	1
+		move	$a1	$s3	#s3 = x = any row
+		move	$a2	$s2	#s2 = y = 0 or 5
+		jal	SetBox		#set entrance
+
+		li	$a0	2
+		move	$a1	$s6
+		move	$a2	$s4	#y = s4 = opposite side of s2
+		jal	SetBox		#set exit
+		j	__GenerateExits_EndIf_2
+	__GenerateExits_LeftRight:
+		#case: swap (left/right)
+		move	$a1	$s2	#s2 = x = 0 or 5
+		move	$a2	$s3	#s3 = y = any row
+		li	$a0	1
+		jal	SetBox		#set entrance
+		move	$a1	$s4	#s2 = x = opposite side of s2
+		move	$a2	$s6	#s3 = y = any row
+		li	$a0	2
+		jal	SetBox		#set exit
+	__GenerateExits_EndIf_2:
+#Epilogue
+	lw	$ra	0($sp)
+	lw	$s1	4($sp)
+	lw	$s2	8($sp)
+	lw	$s3	12($sp)
+	lw	$s4	16($sp)
+	addu	$sp	$sp	20
+	jr	$ra
 
 
 
 # Function PrintTable
-# Parameters : 	$a0: adress of the first integer in the table
+# Parameters : 	$a0: address of the first integer in the table
 # 		$a1: width of the table (as in how many integers)
 # Pre-conditions: $a0 >=0
 # Returns: -
@@ -459,8 +522,8 @@ PrintTable:
 		addi	$t2	$t2	1
 		__Loop_PrintLine:
 			bge	$t5	$t1	__Fin_Loop_PrintLine
-			add	$t4	$t0	$t3	# t4: Adress of the first int of the table + offset
-			# print integer in memory at adress $t4
+			add	$t4	$t0	$t3	# t4: Address of the first int of the table + offset
+			# print integer in memory at address $t4
 			lw	$a0	0($t4)
 			li	$v0	1
 			syscall
@@ -536,8 +599,8 @@ PrintInt:
 # Returns : $v0: Random int
 RandomBetween:
 #Prologue
-	subu	$sp	$sp	4
-	sw	$a0	0($sp)
+	move	$t7	$a1
+	move	$t6	$a0
 #Body
 	#the syscall takes for granted that we generate between 0 and n
 	#we want an int between n and m
@@ -553,8 +616,8 @@ RandomBetween:
 	add	$v0	$a0	$t0
 
 #Epilogue
-	lw	$a0	0($sp)
-	addu	$sp	$sp	4
+	move	$a1	$t7
+	move	$a0	$t6
 	jr	$ra
 
 
