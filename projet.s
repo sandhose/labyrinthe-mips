@@ -68,7 +68,7 @@ GenerateMode:
 	jal	AskSize
 	move	$s0	$v0
 
-	jal	AskFilename
+	jal	OpenGenerateFD
 	move	$s1	$v0
 
 	# Display some stuff (mode + size)
@@ -114,6 +114,11 @@ GenerateMode:
 
 	# Print memory
 	jal	PrintTable
+
+	move	$a0	$s1
+	lw	$a1	Size
+	lw	$a2	Address
+	jal	SaveFile
 
 	j	exit
 
@@ -275,6 +280,7 @@ OpenSolveFDs:
 	lw	$s0	4($sp)
 	lw	$s1	8($sp)
 	lw	$s2	12($sp)
+	addu	$sp	$sp	16
 	jr	$ra
 
 	__OpenError:
@@ -283,6 +289,32 @@ OpenSolveFDs:
 		syscall
 		j	__OpenSolveFDs
 
+OpenGenerateFD:
+# Prologue
+	subu	$sp	$sp	4
+	sw	$ra	($sp)
+# Body
+	__OpenGenerateFD:
+	jal	AskFilename
+
+	move	$a0	$v0	# Pass the string as syscall argument
+	li	$v0	13
+	li	$a1	1	# Open for writing
+	li	$a2	0
+	syscall
+
+	bltz	$v0	__OpenError2	# Error while reading file
+
+# Epilogue
+	lw	$ra	($sp)
+	addu	$sp	$sp	4
+	jr	$ra
+
+	__OpenError2:
+		li	$v0	4
+		la	$a0	StrOpenError
+		syscall
+		j	__OpenGenerateFD
 
 StringLength:
 	li	$v0	0	# Counter
