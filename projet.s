@@ -419,20 +419,30 @@ SaveNumberToAscii:
 
 # Save a labyrinth ($a1: width ; $a2: address) to a file descriptor ($a0)
 SaveFile:
-	subu	$sp	$sp	28
+	subu	$sp	$sp	32
 	sw	$ra	($sp)
 	sw	$s0	4($sp)	# $s0: file descriptor
 	sw	$s1	8($sp)	# $s1: table width
 	sw	$s2	12($sp)	# $s2: table address
 	sw	$s3	16($sp)	# $s3: current line
 	sw	$s4	20($sp)	# $s4: current cell
-	sw	$s5	24($sp)	# $s5: buffer pointer
+	sw	$s5	24($sp)	# $s5: current buffer pointer
+	sw	$s6	28($sp) # $s6: initial buffer pointer (heap allocated)
 
 	move	$s0	$a0
 	move	$s1	$a1
 	move	$s2	$a2
 	li	$s3	0
-	la	$s5	Buffer
+
+	# Calculate space needed (table width^2 * 3 + 4) for the buffer
+	# The buffer is heap allocated
+	mulu	$a0	$s1	$s1
+	mulu	$a0	$a0	3
+	addu	$a0	$a0	3
+	li	$v0	9
+	syscall
+	move	$s5	$v0	# Save the buffer address
+	move	$s6	$v0
 
 	move	$a0	$s1
 	move	$a1	$s5
@@ -459,8 +469,8 @@ SaveFile:
 
 	li	$v0	15
 	move	$a0	$s0
-	la	$a1	Buffer
-	subu	$a2	$s5	$a1
+	move	$a1	$s6
+	subu	$a2	$s5	$s6	# Calculate buffer size
 	syscall
 
 	lw	$ra	($sp)
@@ -470,7 +480,8 @@ SaveFile:
 	lw	$s3	16($sp)
 	lw	$s4	20($sp)
 	lw	$s5	24($sp)
-	addu	$sp	$sp	28
+	lw	$s6	28($sp)
+	addu	$sp	$sp	32
 	jr	$ra
 
 # SaveLine:
