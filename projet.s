@@ -5,7 +5,7 @@ seed:
 	.word 0xdeadbeef, 0x13371337
 max_random_float:
 	.float 2147483647.0
-Buffer:
+Buffer:	.align 2
 	.space 255
 Size:
 	.align 2
@@ -119,9 +119,20 @@ GenerateMode:
 
 SolveMode:
 	jal	OpenSolveFDs
+	move	$s0	$v0	# Read file descriptor
+	move	$s1	$v1	# Write file descriptor
 	move	$a0	$v0
 
 	jal	ParseFile
+	sw	$v0	Address
+	sw	$v1	Size
+
+	jal	PrintTable
+
+	move	$a0	$s1
+	lw	$a1	Size
+	lw	$a2	Address
+	jal	SaveFile
 
 	j	exit
 
@@ -318,8 +329,8 @@ ParseInt:
 
 # Parse a labyrinth file
 # @param	$a0	file descriptor
-# @returns	$v0	labyrinth size
-# @returns	$v1	labyrinth address
+# @returns	$v0	labyrinth address
+# @returns	$v1	labyrinth size
 ParseFile:
 	subu	$sp	$sp	24
 	sw	$ra	($sp)
@@ -348,8 +359,8 @@ ParseFile:
 		addi	$s4	$s4	4
 		blt	$s4	$s2	__Loop_ParseFile
 
-	move	$v0	$s1
-	move	$v1	$s3
+	move	$v0	$s3	# return labyrinth address
+	move	$v1	$s1	# return labyrinth size
 
 	lw	$ra	($sp)
 	lw	$s0	4($sp)
@@ -360,6 +371,114 @@ ParseFile:
 	addu	$sp	$sp	24
 	jr	$ra
 
+# Save a given int ($a0) to the head of a buffer ($a1) with leading zero and trailing space
+SaveNumberToAscii:
+	li	$t1	10
+	div	$a0	$t1
+	mflo	$t0
+	mfhi	$t1
+	addu	$t0	$t0	48
+	addu	$t1	$t1	48
+	sb	$t0	($a1)
+	sb	$t1	1($a1)
+	li	$t0	32	# acii(32) = Space
+	sb	$t0	2($a1)
+	jr	$ra
+
+# Save a labyrinth ($a1: width ; $a2: address) to a file descriptor ($a0)
+SaveFile:
+	subu	$sp	$sp	28
+	sw	$ra	($sp)
+	sw	$s0	4($sp)	# $s0: file descriptor
+	sw	$s1	8($sp)	# $s1: table width
+	sw	$s2	12($sp)	# $s2: table address
+	sw	$s3	16($sp)	# $s3: current line
+	sw	$s4	20($sp)	# $s4: current cell
+	sw	$s5	24($sp)	# $s5: buffer pointer
+
+	move	$s0	$a0
+	move	$s1	$a1
+	move	$s2	$a2
+	li	$s3	0
+	la	$s5	Buffer
+
+	move	$a0	$s1
+	move	$a1	$s5
+	jal	SaveNumberToAscii
+	addi	$s5	$s5	3
+	lb	$t0	NewLine
+	sb	$t0	-1($s5)	# Replace last char (a space) in buffer with \n
+
+	__LoopLine_SaveFile:
+		li	$s4	0
+		__LoopCell_SaveFile:
+			lw	$a0	($s2)
+			move	$a1	$s5
+			jal	SaveNumberToAscii
+			addi	$s2	$s2	4	# Move table one word
+			addi	$s5	$s5	3	# Move buffer 3 chars
+			addi	$s4	$s4	1	# current cell++
+			bne	$s4	$s1	__LoopCell_SaveFile
+
+		lb	$t0	NewLine
+		sb	$t0	-1($s5)	# Replace last char (a space) in buffer with \n
+		addi	$s3	$s3	1	# current line++
+		bne	$s3	$s1	__LoopLine_SaveFile
+
+	li	$v0	15
+	move	$a0	$s0
+	la	$a1	Buffer
+	subu	$a2	$s5	$a1
+	syscall
+
+	lw	$ra	($sp)
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
+	lw	$s3	16($sp)
+	lw	$s4	20($sp)
+	lw	$s5	24($sp)
+	addu	$sp	$sp	28
+	jr	$ra
+
+# SaveLine:
+# 	subu	$sp	$sp	20
+# 	sw	$ra	($sp)
+# 	sw	$s0	4($sp)
+# 	sw	$s1	8($sp)
+# 	sw	$s2	12($sp)
+# 	sw	$s3	16($sp)
+#
+# 	move	$s0	$a0	# fd
+# 	move	$s1	$a1	# tw
+# 	move	$s2	$a2	# ta
+# 	li	$s3	0	# cn
+# 	la	$s4	Buffer
+#
+# 	__Loop_SaveLine:
+# 		lw	$t0	($s2)
+# 		li	$t1	10
+# 		div	$t0	$t1
+# 		mflo	$t1
+# 		mfhi	$t2
+# 		addu	$t1	$t1	48
+# 		addu	$t2	$t2	48
+# 		sw	$t1	($s4)
+# 		sw	$t2	1($s4)
+# 		sw
+# 		addu	$s2	$s2	4
+# 		addu	$s4	$s4	4
+# 		addu	$s3	$s3	1
+#
+# 		beq	$s3	$s1	__Loop_SaveLine
+#
+# 	lw	$ra	($sp)
+# 	lw	$s0	4($sp)
+# 	lw	$s1	8($sp)
+# 	lw	$s2	12($sp)
+# 	lw	$s3	16($sp)
+# 	addu	$sp	$sp	20
+# 	jr	$ra
 
 # Function CreateTable
 # Pre-conditions: $a0 >=0
