@@ -391,6 +391,11 @@ ParseFile:
 		addi	$s4	$s4	4
 		blt	$s4	$s2	__Loop_ParseFile
 
+	# Close filedecriptor
+	li	$v0	16
+	move	$a0	$s0
+	syscall
+
 	move	$v0	$s3	# return labyrinth address
 	move	$v1	$s1	# return labyrinth size
 
@@ -471,6 +476,11 @@ SaveFile:
 	move	$a0	$s0
 	move	$a1	$s6
 	subu	$a2	$s5	$s6	# Calculate buffer size
+	syscall
+
+	# Close filedecriptor
+	li	$v0	16
+	move	$a0	$s0
 	syscall
 
 	lw	$ra	($sp)
