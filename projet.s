@@ -568,6 +568,42 @@ SetBox:
 	sb	$a0	0($t4)
 	jr	$ra
 
+# Set a flag of a cell
+# @param	$a0	Flag to set (0 = least significant byte)
+# @param	$a1	x coordinate
+# @param	$a2	y coordinate
+SetFlag:
+	lw	$t0	Address
+	lw	$t1	Size
+	mul	$t1	$a2	$t1	# $t1: offset = y * size
+	add	$t1	$a1	$t1	# $t1: offset = offset + x
+	add	$t0	$t1	$t0	# $t0: address + offset
+	lbu	$t1	($t0)		# load current value in $t1
+	
+	li	$t2	1
+	sllv	$t2	$t2	$a0	# $t2: 1 << N (N = flag to set)
+	or	$t1	$t1	$t2	# turn on the flag...
+	sb	$t1	($t0)		# ...and save it
+	jr	$ra
+
+# Unset a flag of a cell
+# @param	$a0	Flag to set (0 = least significant byte)
+# @param	$a1	x coordinate
+# @param	$a2	y coordinate
+UnsetFlag:
+	lw	$t0	Address
+	lw	$t1	Size
+	mul	$t1	$a2	$t1	# $t1: offset = y * size
+	add	$t1	$a1	$t1	# $t1: offset = offset + x
+	add	$t0	$t1	$t0	# $t0: address + offset
+	lbu	$t1	($t0)		# load current value in $t1
+	
+	li	$t2	1
+	sllv	$t2	$t2	$a0	# $t2: 1 << N (N = flag to unset)
+	not	$t2	$t2		# invert $t2 to unset the flag...
+	and	$t1	$t1	$t2	# ...with an and...
+	sb	$t1	($t0)		# ...and save it
+	jr	$ra
 
 
 # Function GenerateExits
@@ -621,26 +657,27 @@ GenerateExits:
 
 	beqz	$s5	__GenerateExits_LeftRight
 		#case: don't swap (top/bottom)
-		li	$a0	1
-		move	$a1	$s3	#s3 = x = any row
-		move	$a2	$s2	#s2 = y = 0 or 5
-		jal	SetBox		#set entrance
+		li	$a0	4	# 4 = entrance flag
+		move	$a1	$s3	# s3 = x = any row
+		move	$a2	$s2	# s2 = y = 0 or 5
+		jal	SetFlag		# set entrance
 
-		li	$a0	2
+		li	$a0	5	# 5 = exit flag
 		move	$a1	$s6
-		move	$a2	$s4	#y = s4 = opposite side of s2
-		jal	SetBox		#set exit
+		move	$a2	$s4	# y = s4 = opposite side of s2
+		jal	SetFlag		# set exit
 		j	__GenerateExits_EndIf_2
 	__GenerateExits_LeftRight:
 		#case: swap (left/right)
-		move	$a1	$s2	#s2 = x = 0 or 5
-		move	$a2	$s3	#s3 = y = any row
-		li	$a0	1
-		jal	SetBox		#set entrance
-		move	$a1	$s4	#s2 = x = opposite side of s2
-		move	$a2	$s6	#s3 = y = any row
-		li	$a0	2
-		jal	SetBox		#set exit
+		li	$a0	4	# 4 = entrance flag
+		move	$a1	$s2	# s2 = x = 0 or 5
+		move	$a2	$s3	# s3 = y = any row
+		jal	SetFlag		# set entrance
+
+		li	$a0	5	# 5 = exit flag
+		move	$a1	$s4	# s2 = x = opposite side of s2
+		move	$a2	$s6	# s3 = y = any row
+		jal	SetFlag		# set exit
 	__GenerateExits_EndIf_2:
 #Epilogue
 	lw	$ra	0($sp)
