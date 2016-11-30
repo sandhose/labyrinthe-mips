@@ -387,8 +387,8 @@ ParseFile:
 		move	$a0	$s0
 		jal	ParseInt
 		addu	$t0	$s3	$s4
-		sw	$v0	($t0)
-		addi	$s4	$s4	4
+		sb	$v0	($t0)
+		addi	$s4	$s4	1
 		blt	$s4	$s2	__Loop_ParseFile
 
 	# Close filedecriptor
@@ -459,10 +459,10 @@ SaveFile:
 	__LoopLine_SaveFile:
 		li	$s4	0
 		__LoopCell_SaveFile:
-			lw	$a0	($s2)
+			lb	$a0	($s2)
 			move	$a1	$s5
 			jal	SaveNumberToAscii
-			addi	$s2	$s2	4	# Move table one word
+			addi	$s2	$s2	1	# Move table one byte
 			addi	$s5	$s5	3	# Move buffer 3 chars
 			addi	$s4	$s4	1	# current cell++
 			bne	$s4	$s1	__LoopCell_SaveFile
@@ -539,9 +539,7 @@ SaveFile:
 # Returns : Address of the first int in the table in $v0
 CreateTable:
 	mul	$a0	$a0	$a0
-	move	$t0	$a0		# $t0: width*width
-	mul	$a0	$a0	4	# $a0: width squared and in bytes
-	li	$v0	9		# malloc of size 4*n*n
+	li	$v0	9	# malloc of size n*n
 	syscall
 				# v0: address
 	li	$t2	0	# t2: offset
@@ -549,8 +547,8 @@ CreateTable:
 	__Loop_Increasing:
 		beq	$t2	$a0	__JR
 		addu	$t4	$v0	$t2	# t4: address + offset
-		sw	$t3	0($t4)
-		addu	$t2	$t2	4
+		sb	$t3	0($t4)
+		addu	$t2	$t2	1
 		j	__Loop_Increasing
 
 
@@ -566,9 +564,8 @@ SetBox:
 	lw	$t1	Size
 	mul	$t3	$a2	$t1	#t3: offset = line number * table width (to select the nth line)
 	add	$t3	$t3	$a1	#t3: add to that the column number (nth line + nth column)
-	mul	$t3	$t3	4 	#t3: convert to bytes
 	add	$t4	$t0	$t3	#t4: address + offset
-	sw	$a0	0($t4)
+	sb	$a0	0($t4)
 	jr	$ra
 
 
@@ -686,7 +683,7 @@ PrintTable:
 	# Printing table's content
 				# $t1: width
 	li	$t2	0	# $t2: line counter (from 1 to width)
-	li	$t3	0 	# $t3: offset (in bytes, so, from 0 to 4*width*width). As opposed to $t2 and $t4 it is never reset
+	li	$t3	0 	# $t3: offset (in bytes, so, from 0 to width*width). As opposed to $t2 and $t4 it is never reset
 	li	$t4	0	# $t4
 	__Loop_PrintTable:
 		bge	$t2	$t1	__Fin_Loop_PrintTable
@@ -696,12 +693,12 @@ PrintTable:
 			bge	$t5	$t1	__Fin_Loop_PrintLine
 			add	$t4	$t0	$t3	# t4: Address of the first int of the table + offset
 			# print integer in memory at address $t4
-			lw	$a0	0($t4)
+			lb	$a0	0($t4)
 			li	$v0	1
 			syscall
 			jal	PrintSpace
 
-			addi	$t3	$t3	4	# increment offset
+			addi	$t3	$t3	1	# increment offset
 			addi	$t5	$t5	1
 			j	__Loop_PrintLine
 		__Fin_Loop_PrintLine:
