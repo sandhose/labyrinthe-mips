@@ -101,15 +101,6 @@ GenerateMode:
 	jal	CreateTable
 	sw	$v0	Address
 
-	# Parameters :	$a0: Adress of the first integer in the table
-	#		$a1: Table width
-	# 		$a2: t[x]
-	#		$a3: y
-	li	$a0	0
-	li	$a1	2
-	li	$a2	2
-	jal	SetBox
-
 	jal	GenerateExits
 
 	# Print memory
@@ -551,58 +542,39 @@ CreateTable:
 		addu	$t2	$t2	1
 		j	__Loop_Increasing
 
-
-
-# Function SetBox
-# Pre-conditions:
-# Parameters :	$a0: int
-#		$a1: x
-#		$a2: y
-# Returns : -
-SetBox:
-	lw	$t0	Address
-	lw	$t1	Size
-	mul	$t3	$a2	$t1	#t3: offset = line number * table width (to select the nth line)
-	add	$t3	$t3	$a1	#t3: add to that the column number (nth line + nth column)
-	add	$t4	$t0	$t3	#t4: address + offset
-	sb	$a0	0($t4)
+# Compute the address of a cell
+# @param	$a0	Table address
+# @param	$a1	Table size
+# @param	$a2	x coordinate
+# @param	$a3	y coordinate
+# @return	$v0	The cell address
+CalcAddress:
+	mul	$v0	$a1	$a3
+	add	$v0	$v0	$a2
+	add	$v0	$v0	$a0
 	jr	$ra
 
 # Set a flag of a cell
-# @param	$a0	Flag to set (0 = least significant byte)
-# @param	$a1	x coordinate
-# @param	$a2	y coordinate
+# @param	$a0	Address of the cell
+# @param	$a1	Flag to set (0 = least significant byte)
 SetFlag:
-	lw	$t0	Address
-	lw	$t1	Size
-	mul	$t1	$a2	$t1	# $t1: offset = y * size
-	add	$t1	$a1	$t1	# $t1: offset = offset + x
-	add	$t0	$t1	$t0	# $t0: address + offset
-	lbu	$t1	($t0)		# load current value in $t1
-	
-	li	$t2	1
-	sllv	$t2	$t2	$a0	# $t2: 1 << N (N = flag to set)
-	or	$t1	$t1	$t2	# turn on the flag...
-	sb	$t1	($t0)		# ...and save it
+	lbu	$t0	($a0)		# load current value in $t0
+	li	$t1	1
+	sllv	$t1	$t1	$a1	# $t1: 1 << N (N = flag to set)
+	or	$t0	$t0	$t1	# turn on the flag...
+	sb	$t0	($a0)		# ...and save it
 	jr	$ra
 
 # Unset a flag of a cell
-# @param	$a0	Flag to set (0 = least significant byte)
-# @param	$a1	x coordinate
-# @param	$a2	y coordinate
+# @param	$a0	Address of the cell
+# @param	$a1	Flag to set (0 = least significant byte)
 UnsetFlag:
-	lw	$t0	Address
-	lw	$t1	Size
-	mul	$t1	$a2	$t1	# $t1: offset = y * size
-	add	$t1	$a1	$t1	# $t1: offset = offset + x
-	add	$t0	$t1	$t0	# $t0: address + offset
-	lbu	$t1	($t0)		# load current value in $t1
-	
-	li	$t2	1
-	sllv	$t2	$t2	$a0	# $t2: 1 << N (N = flag to unset)
-	not	$t2	$t2		# invert $t2 to unset the flag...
-	and	$t1	$t1	$t2	# ...with an and...
-	sb	$t1	($t0)		# ...and save it
+	lbu	$t0	($a0)		# load current value in $t1
+	li	$t1	1
+	sllv	$t1	$t1	$a1	# $t2: 1 << N (N = flag to unset)
+	not	$t1	$t1		# invert $t2 to unset the flag...
+	and	$t0	$t0	$t1	# ...with an and...
+	sb	$t0	($a0)		# ...and save it
 	jr	$ra
 
 
@@ -612,80 +584,83 @@ UnsetFlag:
 # Returns : -
 GenerateExits:
 #Prologue
-	subu	$sp	$sp	20
+	subu	$sp	$sp	32
 	sw	$ra	0($sp)
-	sw	$s1	4($sp)
-	sw	$s2	8($sp)
-	sw	$s3	12($sp)
-	sw	$s4	16($sp)
+	sw	$s0	4($sp)		# $s0: Table adress
+	sw	$s1	8($sp)		# $s1: Table size
+	sw	$s2	12($sp)		# $s2: Entrance column
+	sw	$s3	16($sp)		# $s3: Entrance cell
+	sw	$s4	20($sp)		# $s4: Exit column
+	sw	$s5	24($sp)		# $s4: Exit cell
+	sw	$s6	28($sp)		# $s6: Horizontal or vertical
 
 #Body
 	lw	$s0	Address
 	lw	$s1	Size
-	subu	$s1	$s1	1
 
+	# Assign the entrance and exit columns
 	li	$a0	0
 	li	$a1	1
 	jal	RandomBetween
-	mul	$s2	$v0	$s1	#s2 = rand(0,1) * Size
-					#s2 = either first or last column
-
-	jal	RandomBetween
-	move	$s5	$v0		#s5 = either 0 or 1
-					#will determine if the start & exit points are on top/bottom or left/right
-
-	move	$a1	$s1
-	jal	RandomBetween
-	move	$s3	$v0		#s3 = rand(0,Size)
-					#s3 = any row
-	move	$a1	$s1
-	jal	RandomBetween
-	move	$s6	$v0		#s6 = rand(0,Size)
-					#s6 = any row
-
-	#if x == Size: x=0; else: x=Size
-	beq	$s2	$s1	__GenerateExits_Li_0
-		move	$s4	$s1
-		j	__GenerateExits_EndIf_1
-	__GenerateExits_Li_0:
+	beqz	$v0	__GenerateExits_ColumnOrder
+		li	$s2	0
+		subu	$s4	$s1	1
+		j	__GenerateExits_ColumnOrder_End
+	__GenerateExits_ColumnOrder:
+		subu	$s2	$s1	1
 		li	$s4	0
-	__GenerateExits_EndIf_1:
+	__GenerateExits_ColumnOrder_End:
 
-	#Maybe swap x and y
-	#If t4 == 0: swap; else: don't swap
-	#t4 being either 0 or 1 (random)
+	# Calculate the entrance & exit cells ( = rand(0, Size - 1))
+	subu	$a1	$s1	1
+	jal	RandomBetween
+	move	$s3	$v0
+	jal	RandomBetween
+	move	$s5	$v0
 
-	beqz	$s5	__GenerateExits_LeftRight
-		#case: don't swap (top/bottom)
-		li	$a0	4	# 4 = entrance flag
-		move	$a1	$s3	# s3 = x = any row
-		move	$a2	$s2	# s2 = y = 0 or 5
-		jal	SetFlag		# set entrance
+	# Swap coordinates randomly (to use horizontal or vertical borders)
+	jal	RandomBetween
+	beqz	$v0	__GenerateExits_DontSwap
+		# Swap entrance
+		move	$t0	$s2
+		move	$s2	$s3
+		move	$s3	$t0
 
-		li	$a0	5	# 5 = exit flag
-		move	$a1	$s6
-		move	$a2	$s4	# y = s4 = opposite side of s2
-		jal	SetFlag		# set exit
-		j	__GenerateExits_EndIf_2
-	__GenerateExits_LeftRight:
-		#case: swap (left/right)
-		li	$a0	4	# 4 = entrance flag
-		move	$a1	$s2	# s2 = x = 0 or 5
-		move	$a2	$s3	# s3 = y = any row
-		jal	SetFlag		# set entrance
+		# Swap exit
+		move	$t0	$s4
+		move	$s4	$s5
+		move	$s5	$t0
 
-		li	$a0	5	# 5 = exit flag
-		move	$a1	$s4	# s2 = x = opposite side of s2
-		move	$a2	$s6	# s3 = y = any row
-		jal	SetFlag		# set exit
-	__GenerateExits_EndIf_2:
+	__GenerateExits_DontSwap:
+
+	move	$a0	$s0
+	move	$a1	$s1
+	move	$a2	$s2
+	move	$a3	$s3
+	jal	CalcAddress
+	move	$a0	$v0
+	li	$a1	4	# 4 = entrance flag
+	jal	SetFlag		# set entrance
+
+	move	$a0	$s0
+	move	$a1	$s1
+	move	$a2	$s4
+	move	$a3	$s5
+	jal	CalcAddress
+	move	$a0	$v0
+	li	$a1	5	# 5 = exit flag
+	jal	SetFlag		# set entrance
+
 #Epilogue
 	lw	$ra	0($sp)
-	lw	$s1	4($sp)
-	lw	$s2	8($sp)
-	lw	$s3	12($sp)
-	lw	$s4	16($sp)
-	addu	$sp	$sp	20
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
+	lw	$s3	16($sp)
+	lw	$s4	20($sp)
+	lw	$s5	24($sp)
+	lw	$s6	28($sp)
+	addu	$sp	$sp	32
 	jr	$ra
 
 
