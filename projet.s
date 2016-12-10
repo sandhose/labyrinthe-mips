@@ -91,7 +91,21 @@ GenerateMode:
 	move	$a2	$s3
 	move	$a3	$s4
 	jal	GenerateNextBox
-	move	$s6	$v0
+
+	move	$a0	$s3
+	move	$a1	$s4
+	move	$a2	$v0
+	jal	MoveCell
+
+	move	$a0	$s0
+	move	$a1	$s1
+	move	$a2	$v0
+	move	$a3	$v1
+	jal	CalcAddress
+
+	move	$a0	$v0
+	li	$a1	7
+	jal	SetFlag
 
 	# Print memory
 	move	$a0	$s0
@@ -608,6 +622,36 @@ UnsetFlag:
 	sb	$t0	($a0)		# ...and save it
 	jr	$ra
 
+# Move in a direction
+# @param	$a0	X coordinate
+# @param	$a1	Y coordinate
+# @param	$a2	Direction (UP, RIGHT, DOWN, LEFT)
+# @return	$v0	Moved X coordinate
+# @return	$v1	Moved Y coordinate
+MoveCell:
+	__MC_Up:
+	bne	$a2	0	__MC_Right
+	move	$v0	$a0
+	subi	$v1	$a1	1
+	jr	$ra
+
+	__MC_Right:
+	bne	$a2	1	__MC_Down
+	addi	$v0	$a0	1
+	move	$v1	$a1
+	jr	$ra
+
+	__MC_Down:
+	bne	$a2	2	__MC_Left
+	move	$v0	$a0
+	addi	$v1	$a1	1
+	jr	$ra
+
+	__MC_Left:
+	subi	$v0	$a0	1
+	move	$v1	$a1
+	jr	$ra
+
 # Find the coordinates of the entrance
 # @param	$a0	Table address
 # @param	$a1	Table size
@@ -941,7 +985,7 @@ PrintTable:
 			bge	$t5	$t1	__Fin_Loop_PrintLine
 			add	$t4	$t0	$t3	# t4: Address of the first int of the table + offset
 			# print integer in memory at address $t4
-			lb	$a0	0($t4)
+			lbu	$a0	0($t4)
 			li	$v0	1
 			syscall
 			jal	PrintSpace
