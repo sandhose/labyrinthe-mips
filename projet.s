@@ -729,8 +729,7 @@ IsOutOfBounds:
 # @param	$a1	Size
 # @param	$a2	x coordinate
 # @param	$a3	y coordinate
-# Returns : 	$v0	new x
-# 		$v1	new y
+# @return 	$v0	the next direction
 GenerateNextBox:
 # Prologue
 	subu	$sp	$sp	32
@@ -750,100 +749,48 @@ GenerateNextBox:
 	move	$s3	$a3	# s3: Original y
 	li 	$s4 	0 	# s4: Counter from 0 to 3
 				#     Used to generate increasingly random numbers (ie: rand(0,n); n++)
-	li	$s5	-1	# s5: Next direction
+	li	$s5	-1	# s5: Returned direction
+	li	$s6	0	# s6: Current direction
 
-	# Inspect each neighboring cell randomly and says it's the next one you should go to.
-	# n = 0
-	# 1: Do Rand(0,n). Did it pick 0 ?
-	# 	Yes? Check the next adjacent cell
-	#	No ? Go back to 1
-	# 2: Is it out of bounds ? Was it visited already ?
-	# 	All good ? Save its coordinates to s5 and s6
-	#		   n = n+1 (Decrease the chances of checking the next cell)
-	# 		   Go back to 1
-	# 	Not good ? Go back to 1 without increasing n
+	# This loops through all the four directions (0..3)
+	__GenerateNextBox_Loop:
+		# Move the coords in the current direction
+		move	$a0	$s2
+		move	$a1	$s3
+		move	$a2	$s6
+		jal	MoveCell
 
-
-	# Switch-like structure
-	__CheckRight:
-		addu	$a2	$s2	1	# x+1
-		move 	$a3	$s3		# reset y
-		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x+1, y)
-		bnez	$v0	__CheckRight_End# if out of bounds, next
+		# Skip if the cell is...
+		move	$a0	$s0
+		move	$a1	$s1
+		move	$a2	$v0
+		move	$a3	$v1
+		# ...out of bount...
+		jal	IsOutOfBounds
+		bnez	$v0	__GenerateNextBox_LoopContinue
 		jal	CalcAddress
 		move	$a0	$v0
+		# ...or already visited
 		jal	WasVisited
-		bnez	$v0	__CheckRight_End# if visited, next
-						# else (if unvisited and inbounds),
-		addi 	$s4 	$s4 	1 	# increase counter. Now 50% chance to CheckLeft
-		li	$s5	1	# RIGHT = 1
-		__CheckRight_End:
-			li	$a0	0
-			move	$a1	$s4
-			jal	RandomBetween
-			move	$a0	$s0		# Reset address and size
-			move	$a1	$s1
-			beqz	$v0	__CheckLeft	# If Rand(0,n) == 0, go CheckLeft
-			j	__CheckLeft_End		# Else, try to go to CheckUp
+		bnez	$v0	__GenerateNextBox_LoopContinue
 
-	__CheckLeft:
-		subu	$a2	$s2	1	# x-1
-		move 	$a3	$s3		# reset y
-		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x-1, y)
-		bnez	$v0	__CheckLeft_End	# if out of bounds, next
-		jal	CalcAddress
-		move	$a0	$v0
-		jal	WasVisited
-		bnez	$v0	__CheckLeft_End	# if visited, next
-						# if unvisited and inbounds,
-		addi 	$s4 	$s4 	1 	# increase counter. 50 to 33% chance to CheckUp
-		li	$s5	3	# LEFT = 3
-		__CheckLeft_End:
-			li	$a0	0
-			li	$a1	2
-			jal	RandomBetween
-			move	$a0	$s0		# Reset address and size
-			move	$a1	$s1
-			beqz	$v0	__CheckUp	# If Rand(0,n) == 0, go CheckUp
-			j	__CheckUp_End 		# Else, try to go to CheckDown
+		# Now that we checked that we can go to this cell,
+		# Lets random between 0 and [the number of direction already checked]...
+		li	$a0	0
+		move	$a1	$s4
+		jal	RandomBetween
+		addi	$s4	$s4	1
+		bnez	$v0	__GenerateNextBox_LoopContinue
 
-	__CheckUp:
-		move 	$a2	$s2		# reset x
-		subu	$a3	$s3	1	# y-1
-		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y-1)
-		bnez	$v0	__CheckUp_End	# if out of bounds, next
-		jal	CalcAddress
-		move	$a0	$v0
-		jal	WasVisited
-		bnez	$v0	__CheckUp_End	# if visited, next
-						# if unvisited and inbounds,
-		addi 	$s4 	$s4 	1 	# increase counter. 50 to 25% chance to CheckDown
-		li	$s5	0	# UP = 0
-		__CheckUp_End:
-			li	$a0	0
-			li	$a1	3
-			jal	RandomBetween
-			move	$a0	$s0		# Reset address and size
-			move	$a1	$s1
-			beqz	$v0	__CheckDown	# If Rand(0,n) == 0, go CheckDown
-			j	__CheckDown_End 	# Else, go EndSwitch
+		# ...and assign the current direction if the number is right (= 0)
+		move	$s5	$s6
 
-	__CheckDown:
-		move 	$a2	$s2		# reset x
-		addu	$a3	$s3	1	# y+1
-		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y+1)
-		bnez	$v0	__CheckDown_End	# if out of bounds, next
-		jal	CalcAddress
-		move	$a0	$v0
-		jal	WasVisited
-		bnez	$v0	__CheckDown_End	# if visited, next
-						# if unvisited and inbounds,
-		li	$s5	2	# DOWN = 2
-		__CheckDown_End:
-			move	$a0	$s0		# Reset address and size
-			move	$a1	$s1
-			#j	__GenerateNextBox_EndSwitch
+		__GenerateNextBox_LoopContinue:
+		# current direction++, and loop
+		addi	$s6	$s6	1
+		bne	$s6	4	__GenerateNextBox_Loop
 
+	# return the selected direction
 	move	$v0	$s5
 #Epilogue
 	lw	$s0	0($sp)
