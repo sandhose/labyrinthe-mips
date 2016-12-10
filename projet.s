@@ -7,12 +7,6 @@ max_random_float:
 	.float 2147483647.0
 Buffer:	.align 2
 	.space 255
-Size:
-	.align 2
-	.space 1
-Address:
-	.align 2
-	.space 1
 StrSolvedSuffix:
 	.asciiz ".resolu"
 StrRandomNumber:
@@ -47,87 +41,76 @@ NewLine:
 
 # Entry point
 __start:
-	#get os time in $v0
+	# Start by seeding MARS' RNG...
+	# ...by getting OS' time...
 	li	$v0	30
 	syscall
 	li	$a0	0
 
-	#set seed to os time
+	# ...and using it as seed
 	move	$a1	$v0
 	li	$v0	40
 	#li	$a0	0 #redundant
 	syscall
 
+	# Let's ask the user for the mode...
 	jal	MainMenu
-	move	$s0	$v0	# s0: Choice
-
+	# ...and jump to the correct one
 	beq	$v0	1	GenerateMode
 	beq	$v0	2	SolveMode
 
 GenerateMode:
+	# Ask the table size
 	jal	AskSize
-	move	$s0	$v0
+	move	$s1	$v0	# Save the table size in $s1
 
+	# Ask the file name & open the filedescriptor
 	jal	OpenGenerateFD
-	move	$s1	$v0
-
-	# Display some stuff (mode + size)
-
-	# Print "Mode: N"
-	li	$v0	4
-	la	$a0	StrMode
-	syscall
-	li	$v0	1
-	move	$a0	$s0
-	syscall
-
-	# Print "; Size: N"
-	li	$v0	4
-	la	$a0	StrSize
-	syscall
-	li	$v0	1
-	move	$a0	$s0
-	syscall
-
-	# Print "\n"
-	li	$v0	4
-	la	$a0	NewLine
-	syscall
+	move	$s2	$v0
 
 	# Allocate memory
-	move	$a0	$s0
-	sw	$a0	Size
-	li	$a1	0
+	move	$a0	$s1
 	jal	CreateTable
-	sw	$v0	Address
+	move	$s0	$v0	# Save the table address in $s0
 
+
+	# Generate the exits of the labyrinth
+	# GenerateExits needs the table size & address
+	move	$a0	$s0
+	move	$a1	$s1
 	jal	GenerateExits
 
 	# Print memory
+	move	$a0	$s0
+	move	$a1	$s1
 	jal	PrintTable
 
-	move	$a0	$s1
-	lw	$a1	Size
-	lw	$a2	Address
+	# Save the labyrinth in the file
+	move	$a0	$s0	# Table address
+	move	$a1	$s1	# Table size
+	move	$a2	$s2	# File descriptor
 	jal	SaveFile
 
+	# ...and we're done!
 	j	exit
 
 SolveMode:
 	jal	OpenSolveFDs
-	move	$s0	$v0	# Read file descriptor
-	move	$s1	$v1	# Write file descriptor
-	move	$a0	$v0
+	move	$s2	$v0	# Read file descriptor
+	move	$s3	$v1	# Write file descriptor
 
+	move	$a0	$v0	# Parse file argument: the file descriptor
 	jal	ParseFile
-	sw	$v0	Address
-	sw	$v1	Size
+	move	$s0	$v0	# Table address
+	move	$s1	$v1	# Table size
 
+	move	$a0	$s0
+	move	$a1	$s1
 	jal	PrintTable
 
-	move	$a0	$s1
-	lw	$a1	Size
-	lw	$a2	Address
+	move	$a0	$s0	# Table address
+	move	$a1	$s1	# Table size
+	move	$a2	$s2	# File descriptor
 	jal	SaveFile
 
 	j	exit
@@ -413,8 +396,9 @@ SaveNumberToAscii:
 	sb	$t0	2($a1)
 	jr	$ra
 
-# Save a labyrinth ($a1: width ; $a2: address) to a file descriptor ($a0)
+# Save a labyrinth ($a0: address ; $a1: width) to a file descriptor ($a2)
 SaveFile:
+	# @TODO: swap variables to have $s0 = address, $s1 = size & $s2 = fd
 	subu	$sp	$sp	32
 	sw	$ra	($sp)
 	sw	$s0	4($sp)	# $s0: file descriptor
@@ -425,9 +409,9 @@ SaveFile:
 	sw	$s5	24($sp)	# $s5: current buffer pointer
 	sw	$s6	28($sp) # $s6: initial buffer pointer (heap allocated)
 
-	move	$s0	$a0
+	move	$s0	$a2
 	move	$s1	$a1
-	move	$s2	$a2
+	move	$s2	$a0
 	li	$s3	0
 
 	# Calculate space needed (table width^2 * 3 + 4) for the buffer
@@ -484,45 +468,6 @@ SaveFile:
 	lw	$s6	28($sp)
 	addu	$sp	$sp	32
 	jr	$ra
-
-# SaveLine:
-# 	subu	$sp	$sp	20
-# 	sw	$ra	($sp)
-# 	sw	$s0	4($sp)
-# 	sw	$s1	8($sp)
-# 	sw	$s2	12($sp)
-# 	sw	$s3	16($sp)
-#
-# 	move	$s0	$a0	# fd
-# 	move	$s1	$a1	# tw
-# 	move	$s2	$a2	# ta
-# 	li	$s3	0	# cn
-# 	la	$s4	Buffer
-#
-# 	__Loop_SaveLine:
-# 		lw	$t0	($s2)
-# 		li	$t1	10
-# 		div	$t0	$t1
-# 		mflo	$t1
-# 		mfhi	$t2
-# 		addu	$t1	$t1	48
-# 		addu	$t2	$t2	48
-# 		sw	$t1	($s4)
-# 		sw	$t2	1($s4)
-# 		sw
-# 		addu	$s2	$s2	4
-# 		addu	$s4	$s4	4
-# 		addu	$s3	$s3	1
-#
-# 		beq	$s3	$s1	__Loop_SaveLine
-#
-# 	lw	$ra	($sp)
-# 	lw	$s0	4($sp)
-# 	lw	$s1	8($sp)
-# 	lw	$s2	12($sp)
-# 	lw	$s3	16($sp)
-# 	addu	$sp	$sp	20
-# 	jr	$ra
 
 # Function CreateTable
 # Pre-conditions: $a0 >=0
@@ -595,8 +540,8 @@ GenerateExits:
 	sw	$s6	28($sp)		# $s6: Horizontal or vertical
 
 #Body
-	lw	$s0	Address
-	lw	$s1	Size
+	move	$s0	$a0	# Table address
+	move	$s1	$a1	# Table size
 
 	# Assign the entrance and exit columns
 	li	$a0	0
@@ -676,8 +621,8 @@ PrintTable:
 	sw	$ra	0($sp)
 # Body:
 	# mul	$a1 	$a1	$a1
-	lw	$t0	Address
-	lw	$t1	Size
+	move	$t0	$a0	# Table address
+	move	$t1	$a1	# Table size
 	# printing "Table width: X"
 	la	$a0	StrTableWidth
 	li	$v0	4
