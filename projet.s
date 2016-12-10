@@ -80,22 +80,25 @@ GenerateMode:
 	# x and y coordinates of the entrance
 	move	$s3	$v0
 	move	$s4	$v1
-	
-	# Print memory
-	move	$a0	$s0
-	move	$a1	$s1
-	jal	PrintTable
-	
-	move	$a0	$s0
-	move	$a1	$s1
-	move	$a2	$s3
-	move	$a3	$s4
-	jal	GenerateNextBox
 
 	# Print memory
 	move	$a0	$s0
 	move	$a1	$s1
 	jal	PrintTable
+
+	move	$a0	$s0
+	move	$a1	$s1
+	move	$a2	$s3
+	move	$a3	$s4
+	jal	GenerateNextBox
+	move	$s6	$v0
+
+	# Print memory
+	move	$a0	$s0
+	move	$a1	$s1
+	jal	PrintTable
+	move	$a0	$s6
+	jal	PrintInt
 
 	# Save the labyrinth in the file
 	move	$a0	$s0	# Table address
@@ -695,21 +698,19 @@ GenerateNextBox:
 	sw	$s5	20($sp)
 	sw	$s6	24($sp)
 	sw	$ra	28($sp)
-	
+
 # Body
 	move	$s0	$a0	# s0: Original address
 	move	$s1	$a1	# s1: Size
 	move	$s2	$a2	# s2: Original x
 	move	$s3	$a3	# s3: Original y
-	li 	$s4 	0 	# s4: Counter from 0 to 3 
+	li 	$s4 	0 	# s4: Counter from 0 to 3
 				#     Used to generate increasingly random numbers (ie: rand(0,n); n++)
-	move 	$s5 	$a2 	# s6: New x
-	move 	$s6 	$a3 	# s6: New y
-	#
+	li	$s5	-1	# s5: Next direction
 
 	# Inspect each neighboring cell randomly and says it's the next one you should go to.
 	# n = 0
-	# 1: Do Rand(0,n). Did it pick 0 ? 
+	# 1: Do Rand(0,n). Did it pick 0 ?
 	# 	Yes? Check the next adjacent cell
 	#	No ? Go back to 1
 	# 2: Is it out of bounds ? Was it visited already ?
@@ -731,7 +732,7 @@ GenerateNextBox:
 		bnez	$v0	__CheckRight_End# if visited, next
 						# else (if unvisited and inbounds),
 		addi 	$s4 	$s4 	1 	# increase counter. Now 50% chance to CheckLeft
-		move 	$s5 	$a2 		# save x, next
+		li	$s5	1	# RIGHT = 1
 		__CheckRight_End:
 			li	$a0	0
 			move	$a1	$s4
@@ -752,7 +753,7 @@ GenerateNextBox:
 		bnez	$v0	__CheckLeft_End	# if visited, next
 						# if unvisited and inbounds,
 		addi 	$s4 	$s4 	1 	# increase counter. 50 to 33% chance to CheckUp
-		move 	$s5 	$a2 		# save x, next
+		li	$s5	3	# LEFT = 3
 		__CheckLeft_End:
 			li	$a0	0
 			li	$a1	2
@@ -773,8 +774,7 @@ GenerateNextBox:
 		bnez	$v0	__CheckUp_End	# if visited, next
 						# if unvisited and inbounds,
 		addi 	$s4 	$s4 	1 	# increase counter. 50 to 25% chance to CheckDown
-		move 	$s5 	$s2		# reset x
-		move 	$s6 	$a3 		# save y, next
+		li	$s5	0	# UP = 0
 		__CheckUp_End:
 			li	$a0	0
 			li	$a1	3
@@ -794,31 +794,13 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckDown_End	# if visited, next
 						# if unvisited and inbounds,
-		move 	$s5 	$s2		# reset x
-		move 	$s6 	$a3 		# save y, next
+		li	$s5	2	# DOWN = 2
 		__CheckDown_End:
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
 			#j	__GenerateNextBox_EndSwitch
 
-	__GenerateNextBox_EndSwitch:
-	move 	$a0	$s2
-	jal	PrintInt
-	move 	$a0	$s3
-	jal	PrintInt
-	move 	$a0	$a2
-	jal	PrintInt
-	move 	$a0	$a3
-	jal	PrintInt
-
-	move 	$a0	$s0
-	move 	$a1 	$s1
-	move 	$a2 	$s5
-	move 	$a3 	$s6
-	jal	CalcAddress
-	move	$a0	$v0
-	li	$a1	7
-	jal	SetFlag
+	move	$v0	$s5
 #Epilogue
 	lw	$s0	0($sp)
 	lw	$s1	4($sp)
@@ -902,7 +884,7 @@ GenerateExits:
 	move	$a0	$v0
 	li	$a1	5	# 5 = exit flag
 	jal	SetFlag		# set entrance
-	
+
 	move	$v0	$s2	# Return entrance coordinates
 	move	$v1	$s3
 
