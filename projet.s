@@ -113,6 +113,16 @@ SolveMode:
 
 	move	$a0	$s0
 	move	$a1	$s1
+	jal	FindEntrance
+	move	$a0	$v0
+	move	$s4	$v1
+	jal	PrintInt
+	move	$a0	$s4
+	jal	PrintInt
+
+
+	move	$a0	$s0
+	move	$a1	$s1
 	jal	PrintTable
 
 	move	$a0	$s0	# Table address
@@ -580,6 +590,49 @@ UnsetFlag:
 	not	$t1	$t1		# invert $t2 to unset the flag...
 	and	$t0	$t0	$t1	# ...with an and...
 	sb	$t0	($a0)		# ...and save it
+	jr	$ra
+
+# Find the coordinates of the entrance
+# @param	$a0	Table address
+# @param	$a1	Table size
+# @return	$v0	Entrance x
+# @return	$v1	Entrance y
+FindEntrance:
+	subu	$sp	$sp	24
+	sw	$ra	($sp)
+	sw	$s0	4($sp)
+	sw	$s1	8($sp)
+	sw	$s2	12($sp)
+	sw	$s3	16($sp)
+	sw	$s4	20($sp)
+
+	move	$s0	$a0
+	move	$s1	$a1
+	li	$s2	0
+	mulu	$s3	$a1	$a1
+	__SearchEntrance_Loop:
+		beq	$s2	$s3	__SearchEntrance_EndLoop
+
+		# Check the entrance flag
+		addu	$a0	$s0	$s2
+		li	$a1	4
+		jal	GetFlag
+		addi	$s2	$s2	1
+		beqz	$v0	__SearchEntrance_Loop
+
+	__SearchEntrance_EndLoop:
+	subu	$s2	$s2	1	# We've gone one step too far
+	div	$s2	$s1	# Divide the offset by the size to get the coordinates
+	mfhi	$v0	# return x...
+	mflo	$v1	# ...and y
+
+	lw	$ra	($sp)
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
+	lw	$s3	16($sp)
+	lw	$s4	20($sp)
+	addu	$sp	$sp	24
 	jr	$ra
 
 # Function WasVisited
