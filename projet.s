@@ -624,24 +624,26 @@ IsOutOfBounds:
 # 		$v1	new y
 GenerateNextBox:
 # Prologue
-	subu	$sp	$sp	20
+	subu	$sp	$sp	28
 	sw	$s0	0($sp)
 	sw	$s1	4($sp)
 	sw	$s2	8($sp)
 	sw	$s3	12($sp)
-	sw	$ra	16($sp)
+	sw	$s4	16($sp)
+	sw	$s5	20($sp)
+	sw	$ra	24($sp)
 	
 # Body
-	move	$s0	$a0
-	move	$s1	$a1
-
-	li	$s2	-1
-	li	$s3	-1
+	move	$s0	$a0	# s0: Original address
+	move	$s1	$a1	# s1: Size
+	move	$s2	$a2	# s2: Original x
+	move	$s3	$a3	# s3: Original y
 	# Try each neighboring cell
 
 	# Switch-like structure
 	__CheckRight:
-		addu	$a2	$a2	1	# x+1
+		addu	$a2	$s2	1	# x+1
+		move 	$a3	$s3		# reset y
 		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x+1, y)
 		bnez	$v0	__CheckRight_End# if out of bounds, next
 		jal	CalcAddress
@@ -649,20 +651,19 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckRight_End# if visited, next
 						# else (if unvisited and inbounds),
-		move	$s2	$a2		# save coordinates, next
+		move	$s4	$a2		# save coordinates, next
 		__CheckRight_End:
 			li	$a0	0
 			li	$a1	1
 			jal	RandomBetween
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
-			subu	$a2	$a2	1	# reset x
 			beqz	$v0	__CheckLeft	# If Rand(0,1) == 0, go CheckLeft
-			addu	$a2	$a2	1	# Else go CheckUp
-			j	__CheckUp
+			j	__CheckLeft_End		# Else, try to go to CheckUp
 
 	__CheckLeft:
-		subu	$a2	$a2	1	# x-1
+		subu	$a2	$s2	1	# x-1
+		move 	$a3	$s3		# reset y
 		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x-1, y)
 		bnez	$v0	__CheckLeft_End	# if out of bounds, next
 		jal	CalcAddress
@@ -670,59 +671,64 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckLeft_End	# if visited, next
 						# if unvisited and inbounds,
-		move	$s2	$a2		# save coordinates, next
+		move	$s4	$a2		# save coordinates, next
 		__CheckLeft_End:
 			li	$a0	0
 			li	$a1	2
 			jal	RandomBetween
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
-			addu	$a2	$a2	1	# reset x
 			beqz	$v0	__CheckUp	# If Rand(0,2) == 0, go CheckUp
-			addu	$a2	$a2	1	# Else go CheckDown
-			j	__CheckDown
+			j	__CheckUp_End 		# Else, try to go to CheckDown
 
 	__CheckUp:
-		addu	$a3	$a3	1	# y+1
-		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y+1)
+		move 	$a2	$s2		# reset x
+		subu	$a3	$s3	1	# y-1
+		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y-1)
 		bnez	$v0	__CheckUp_End	# if out of bounds, next
 		jal	CalcAddress
 		move	$a0	$v0
 		jal	WasVisited
 		bnez	$v0	__CheckUp_End	# if visited, next
 						# if unvisited and inbounds,
-		move	$s2	$a2
-		move	$s3	$a3		# save coordinates, next
+		move	$s5	$a3		# save coordinates, next
 		__CheckUp_End:
 			li	$a0	0
 			li	$a1	3
 			jal	RandomBetween
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
-			subu	$a3	$a3	1	# reset y
 			beqz	$v0	__CheckDown	# If Rand(0,3) == 0, go CheckDown
-			addu	$a2	$a2	1	# Else go EndSwitch
-			j	__GenerateNextBox_EndSwitch
+			j	__CheckDown_End 	# Else, go EndSwitch
 
 	__CheckDown:
-		subu	$a3	$a3	1	# y-1
-		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y-1)
+		move 	$a2	$s2		# reset x
+		addu	$a3	$s3	1	# y+1
+		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y+1)
 		bnez	$v0	__CheckDown_End	# if out of bounds, next
 		jal	CalcAddress
 		move	$a0	$v0
 		jal	WasVisited
 		bnez	$v0	__CheckDown_End	# if visited, next
 						# if unvisited and inbounds,
-		move	$s2	$a2
-		move	$s3	$a3		# save coordinates, next
+		move	$s5	$a3		# save coordinates, next
 		__CheckDown_End:
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
 			#j	__GenerateNextBox_EndSwitch
 
 	__GenerateNextBox_EndSwitch:
-	move	$a2	$s2
-	move	$a3	$s3
+	move 	$a0	$s2
+	jal	PrintInt
+	move 	$a0	$s3
+	jal	PrintInt
+	move 	$a0	$a2
+	jal	PrintInt
+	move 	$a0	$a3
+	jal	PrintInt
+
+	move 	$a0	$s0
+	move 	$a1 	$s1
 	jal	CalcAddress
 	move	$a0	$v0
 	li	$a1	7
@@ -732,8 +738,10 @@ GenerateNextBox:
 	lw	$s1	4($sp)
 	lw	$s2	8($sp)
 	lw	$s3	12($sp)
-	lw	$ra	16($sp)
-	addu	$sp	$sp	20
+	lw	$s4	16($sp)
+	lw	$s5	20($sp)
+	lw	$ra	24($sp)
+	addu	$sp	$sp	28
 	jr	$ra
 
 
