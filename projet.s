@@ -1,10 +1,16 @@
 # projet.s
 
 .data
+seed:
+	.word 0xdeadbeef, 0x13371337
+max_random_float:
+	.float 2147483647.0
 Buffer:	.align 2
 	.space 255
 StrSolvedSuffix:
 	.asciiz ".resolu"
+StrRandomNumber:
+	.asciiz "Random number: "
 StrTableWidth:
 	.asciiz "Table width: "
 StrStoredAt:
@@ -16,9 +22,13 @@ StrMenuInvalid:
 StrAskSize:
 	.asciiz "Labyrinth size? "
 StrSizeInvalid:
-	.asciiz "Labyrinth size must be at least 2\n"
+	.asciiz "Labyrinth size must be at least 3\n"
 StrAskFilename:
 	.asciiz "File name? "
+StrMode:
+	.asciiz "Mode: "
+StrSize:
+	.asciiz " ; Size: "
 StrOpenError:
 	.asciiz "Can't open file\n"
 StrSpace:
@@ -30,7 +40,6 @@ NewLine:
 .globl __start
 
 # Entry point
-# It initializes the RNG, ask for the mode, and jumps to the correct mode
 __start:
 	# Start by seeding MARS' RNG...
 	# ...by getting OS' time...
@@ -41,7 +50,7 @@ __start:
 	# ...and using it as seed
 	move	$a1	$v0
 	li	$v0	40
-	#li	$a0	0 #redundant
+	# li	$a0	0 # redundant
 	syscall
 
 	# Let's ask the user for the mode...
@@ -50,15 +59,6 @@ __start:
 	beq	$v0	1	GenerateMode
 	beq	$v0	2	SolveMode
 
-# Generate mode
-# It:
-#  - Asks for the table size
-#  - Opens the save file descriptor
-#  - Create the table in memory
-#  - Generate the entrance and exit
-#  - ???
-#  - Print the table to the console
-#  - Saves the labyrinth in the previously opened file descriptor
 GenerateMode:
 	# Ask the table size
 	jal	AskSize
@@ -94,15 +94,6 @@ GenerateMode:
 	# ...and we're done!
 	j	exit
 
-# Generate mode
-# It:
-#  - Asks for the table size
-#  - Opens the save file descriptor
-#  - Create the table in memory
-#  - Generate the entrance and exit
-#  - ???
-#  - Print the table to the console
-#  - Saves the labyrinth in the previously opened file descriptor
 SolveMode:
 	jal	OpenSolveFDs
 	move	$s2	$v0	# Read file descriptor
@@ -125,7 +116,7 @@ SolveMode:
 	j	exit
 
 # Prints the menu
-# @return	$v0	The user's choice (1 or 2)
+# Returns : User's choice (1 or 2)
 MainMenu:
 	# Print "Mode:\n  1. Generate\n  2. Solve\nChoice? "
 	li	$v0	4
@@ -145,8 +136,8 @@ MainMenu:
 	syscall
 	j	MainMenu
 
-# Asks user for the size of the labyrinth. Size must be > 1
-# @return	$v0	The size of the labyrinth
+# Asks user for the size of the labyrinth. Size must be > 2
+# Returns : $v0: Int, user's choice
 AskSize:
 	# Print "Labyrinth size? "
 	li	$v0	4
@@ -156,9 +147,9 @@ AskSize:
 	li	$v0	5
 	syscall
 
-	bgt	$v0	1	__JR
+	bgt	$v0	2	__JR
 
-	# Labyrinth size must be > 1, loop until the choice is valid
+	# Labyrinth size must be > 2, loop until the choice is valid
 	li	$v0	4
 	la	$a0	StrSizeInvalid
 	syscall
@@ -166,8 +157,8 @@ AskSize:
 	j	AskSize
 
 # Ask the user for a filename
-# @return	$v0	The address containing the null-terminated string
-# @return	$v1	The length of the string
+# @returns	$v0	The address containing the null-terminated string
+# 		$v1	The length of the string
 AskFilename:
 # Prologue
 	subu	$sp	$sp	12
@@ -207,9 +198,7 @@ AskFilename:
 	addu	$sp	$sp	12
 	jr	$ra
 
-# Adds the resolved suffix to a given string of a given length
-# @param	$a0	The address of the string to modify
-# @param	$a1	The length of that string
+# Adds the resolved suffix to a given ($a0) string of a given ($a1) length
 AddSolvedSuffix:
 	la	$t1	StrSolvedSuffix
 	addu	$t2	$a0	$a1
@@ -223,9 +212,6 @@ AddSolvedSuffix:
 
 	jr	$ra
 
-# Open the file descriptors needed for solve mode
-# @return	$v0	The file descriptor used to read the labyrinth
-# @return	$v1	The file descriptor used to save the solved labyrinth
 OpenSolveFDs:
 # Prologue
 	subu	$sp	$sp	16
@@ -277,8 +263,6 @@ OpenSolveFDs:
 		syscall
 		j	__OpenSolveFDs
 
-# Open the file descriptor needed for generate mode
-# @return	$v0	The just opened file descriptor in write mode
 OpenGenerateFD:
 # Prologue
 	subu	$sp	$sp	4
@@ -306,9 +290,6 @@ OpenGenerateFD:
 		syscall
 		j	__OpenGenerateFD
 
-# Get a string length (chars before null terminator)
-# @param	$a0	String address
-# @return	$v0	The length of the string
 StringLength:
 	li	$v0	0	# Counter
 	__StringLength:
@@ -320,7 +301,7 @@ StringLength:
 
 # Parse the next int in a file
 # @param	$a0	The file descriptor
-# @return	$v0	The int read
+# @returns	$v0	The int read
 ParseInt:
 	li	$t0	0	# Value
 	li	$t1	0	# Bytes read
@@ -354,8 +335,8 @@ ParseInt:
 
 # Parse a labyrinth file
 # @param	$a0	file descriptor
-# @return	$v0	labyrinth address
-# @return	$v1	labyrinth size
+# @returns	$v0	labyrinth address
+# @returns	$v1	labyrinth size
 ParseFile:
 	subu	$sp	$sp	24
 	sw	$ra	($sp)
@@ -402,8 +383,6 @@ ParseFile:
 	jr	$ra
 
 # Save a given int ($a0) to the head of a buffer ($a1) with leading zero and trailing space
-# @param	$a0	The int to save
-# @param	$a1	The address where to save the chars
 SaveNumberToAscii:
 	li	$t1	10
 	div	$a0	$t1
@@ -417,10 +396,7 @@ SaveNumberToAscii:
 	sb	$t0	2($a1)
 	jr	$ra
 
-# Save a labyrinth to a file descriptor
-# @param	$a0	Table address
-# @param	$a1	Table size
-# @param	$a2	Save file descriptor
+# Save a labyrinth ($a0: address ; $a1: width) to a file descriptor ($a2)
 SaveFile:
 	# @TODO: swap variables to have $s0 = address, $s1 = size & $s2 = fd
 	subu	$sp	$sp	32
@@ -493,9 +469,10 @@ SaveFile:
 	addu	$sp	$sp	32
 	jr	$ra
 
-# Create a table for a given size
-# @param	$a0	Table size (must be > 0)
-# @return	$v0	The table address
+# Function CreateTable
+# Pre-conditions: $a0 >=0
+# Parameters :	$a0: Table width (as in how many integers)
+# Returns : Address of the first int in the table in $v0
 CreateTable:
 	mul	$a0	$a0	$a0
 	li	$v0	9	# malloc of size n*n
@@ -525,7 +502,7 @@ CalcAddress:
 # Get a flag of a cell
 # @param	$a0	Address of the cell
 # @param	$a1	Flag to get
-# @return	$v0	= 0 -> flag unset ; > 0 -> flag set
+# @returns	$v0	= 0 -> flag unset ; > 0 -> flag set
 GetFlag:
 	lbu	$t0	($a0)
 	li	$v0	1
@@ -559,24 +536,31 @@ UnsetFlag:
 # Function WasVisited
 # @param	$a0	Address
 # Returns : 	$v0	Boolean
-#
+# 
 # If a box was never visited then all its walls are there
 # If all the walls are up then the first four bits are 1
 # 00001111 in binary is 15 in decimal
 # So, 15 AND (the box) should equal 15
 WasVisited:
-	lb	$t7	$a0
+	lb	$t7	0($a0)
 	andi	$t7	$t7	15
 	beq	$t7	15	__False
-	#Else
-	__True: #already visited
-	li	$v0	1
-	jr	$ra
-	__False: #never visited
-	li	$v0	0
-	jr	$ra
-	
+	# Else
+	j	__True
 
+# Function IsOutOfBounds
+# @param	$a0	-
+# @param	$a1	Size
+# @param	$a2	x
+# @param	$a3	y
+# Returns : 	$v0	Boolean
+IsOutOfBounds:
+	bltz	$a2	__True
+	bgt	$a2	$a1	__True
+	bltz	$a3	__True
+	bgt	$a3	$a1	__True
+	j __False
+	
 
 # Function GenerateNextBox
 # @param	$a0	Address
@@ -584,62 +568,110 @@ WasVisited:
 # @param	$a2	x coordinate
 # @param	$a3	y coordinate
 # Returns : 	$v0	new x
-#		$v1	new y
+# 		$v1	new y
 GenerateNextBox:
-	move	$a0	$s0
-	jal	CalcAddress
-	move	$a0	$v0		# $a0: &(t[x][y])
+	move	$s0	$a0
+	move	$s1	$a1
 	
-	#Try each neighboring cell
+	li	$s2	-1
+	li	$s3	-1
+	# Try each neighboring cell
 	
-	#Switch-like structure
-	#__CheckRight:
-	li	$a1	1		#1st bit = Right wall
-	jal	GetFlag
-	beqz	$v0	__CheckLeft	#If wall is down, try another one
-	#Else
-	li	$a2	0		#Tear down my right wall
-	jal	SetFlag
-	addu	$a0	$a0	1	#Next box is x+1, y
-	li	$a2	3		#3rd bit = Left wall
-	jal	SetFlag			#Tear down its left wall
-	j	__GenerateNextBox_EndSwitch
+	# Switch-like structure
+	__CheckRight:
+		addu	$a2	$a2	1	# x+1
+		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x+1, y)
+		bnez	$v0	__CheckRight_End# if out of bounds, next
+		jal	CalcAddress		
+		move	$a0	$v0
+		jal	WasVisited		
+		bnez	$v0	__CheckRight_End# if visited, next
+						# else (if unvisited and inbounds),
+		move	$s2	$a2		# save coordinates, next			
+		__CheckRight_End:
+			move	$a0	$s0		# Reset address and size
+			move	$a1	$s1
+			subu	$a2	$a2	1	# reset x
+			li	$a0	0
+			li	$a1	1
+			jal	RandomBetween		
+			beqz	$v0	__CheckLeft	# If Rand(0,1) == 0, go CheckLeft
+			addu	$a2	$a2	1	# Else go CheckUp
+			j	__CheckUp		
 	
 	__CheckLeft:
-	li	$a2	3		#3rd bit = Left wall
-	jal	GetFlag
-	beqz	$v0	__CheckTop	#If wall is down, try another one
-	#Else				#Else
-	li	$a3	1		#Tear down my left wall
+		subu	$a2	$a2	1	# x-1
+		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x-1, y)
+		bnez	$v0	__CheckLeft_End	# if out of bounds, next
+		jal	CalcAddress		
+		move	$a0	$v0
+		jal	WasVisited		
+		bnez	$v0	__CheckLeft_End	# if visited, next
+						# if unvisited and inbounds,
+		move	$s2	$a2		# save coordinates, next
+		__CheckLeft_End:
+			move	$a0	$s0		# Reset address and size
+			move	$a1	$s1
+			addu	$a2	$a2	1	# reset x
+			li	$a0	0
+			li	$a1	2
+			jal	RandomBetween		
+			beqz	$v0	__CheckUp	# If Rand(0,2) == 0, go CheckUp
+			addu	$a2	$a2	1	# Else go CheckDown
+			j	__CheckDown		
+	
+	__CheckUp:
+		addu	$a3	$a3	1	# y+1
+		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y+1)
+		bnez	$v0	__CheckUp_End	# if out of bounds, next
+		jal	CalcAddress		
+		move	$a0	$v0
+		jal	WasVisited		
+		bnez	$v0	__CheckUp_End	# if visited, next
+						# if unvisited and inbounds,
+		move	$s2	$a2
+		move	$s3	$a3		# save coordinates, next
+		__CheckUp_End:
+			move	$a0	$s0		# Reset address and size
+			move	$a1	$s1
+			subu	$a3	$a3	1	# reset y
+			li	$a0	0
+			li	$a1	3
+			jal	RandomBetween		
+			beqz	$v0	__CheckDown	# If Rand(0,3) == 0, go CheckDown
+			addu	$a2	$a2	1	# Else go EndSwitch
+			j	__GenerateNextBox_EndSwitch
+	
+	__CheckDown:
+		subu	$a3	$a3	1	# y-1
+		jal	IsOutOfBounds		# IsOutOfBounds(address, size, x, y-1)
+		bnez	$v0	__CheckDown_End	# if out of bounds, next
+		jal	CalcAddress
+		move	$a0	$v0
+		jal	WasVisited		
+		bnez	$v0	__CheckDown_End	# if visited, next
+						# if unvisited and inbounds,
+		__CheckDown_End:
+			move	$a0	$s0		# Reset address and size
+			move	$a1	$s1
+			addu	$a3	$a3	1	# reset y
+			#j	__GenerateNextBox_EndSwitch
+	
+	__GenerateNextBox_EndSwitch:	
+	li	$a2	0		# Tear down my right wall
 	jal	SetFlag
-	subu	$a0	$a0	1	#Next box is x+1, y
-	li	$a2	1		#3rd bit = Left wall
-	jal	SetFlag			#Tear down its left wall
-	j	__GenerateNextBox_EndSwitch
+	addu	$a0	$a0	1	# Next box is x+1, y
+	li	$a2	3		# 3rd bit = Left wall
+	jal	SetFlag			# Tear down its left wall
 	
-	__CheckTop:
-	li	$a2	0		#0th bit = Top wall
-	jal	GetFlag
-	beqz	$v0	__CheckBottom	#If wall is down, try another one
-	subu	$a1	$a1	1	#Else, next box is x, y-1 
-	j	__GenerateNextBox_EndSwitch
-
-	__CheckBottom:
-	li	$a2	2		#2nd bit = Bottom wall
-	jal	GetFlag
-	beqz	$v0	__Pop		#If wall is down, go back
-	addu	$a1	$a1	1	#Else, next box is x, y+1 
-	j	__GenerateNextBox_EndSwitch
-	
-	__GenerateNextBox_EndSwitch:
 	
 # Function GenerateExits
-# Generates the entrance and the exit of the labyrinth
-# @param	$a0	Table address
-# @param	$a1	Table size
+# Pre-conditions:
+# Parameters :
+# Returns : -
 GenerateExits:
-#Prologue
-	subu	$sp	$sp	28
+# Prologue
+	subu	$sp	$sp	32
 	sw	$ra	0($sp)
 	sw	$s0	4($sp)		# $s0: Table adress
 	sw	$s1	8($sp)		# $s1: Table size
@@ -647,8 +679,9 @@ GenerateExits:
 	sw	$s3	16($sp)		# $s3: Entrance cell
 	sw	$s4	20($sp)		# $s4: Exit column
 	sw	$s5	24($sp)		# $s4: Exit cell
+	sw	$s6	28($sp)		# $s6: Horizontal or vertical
 
-#Body
+# Body
 	move	$s0	$a0	# Table address
 	move	$s1	$a1	# Table size
 
@@ -705,7 +738,7 @@ GenerateExits:
 	li	$a1	5	# 5 = exit flag
 	jal	SetFlag		# set entrance
 
-#Epilogue
+# Epilogue
 	lw	$ra	0($sp)
 	lw	$s0	4($sp)
 	lw	$s1	8($sp)
@@ -713,7 +746,8 @@ GenerateExits:
 	lw	$s3	16($sp)
 	lw	$s4	20($sp)
 	lw	$s5	24($sp)
-	addu	$sp	$sp	28
+	lw	$s6	28($sp)
+	addu	$sp	$sp	32
 	jr	$ra
 
 
@@ -832,24 +866,24 @@ PrintInt:
 # Pre-conditions : 0 <= $a0 < $a1
 # Returns : $v0: Random int
 RandomBetween:
-#Prologue
+# Prologue
 	move	$t7	$a1
 	move	$t6	$a0
-#Body
-	#the syscall takes for granted that we generate between 0 and n
-	#we want an int between n and m
-	#procedure: 	max = max - min
-	#		number = syscall(max)
-	#		number = number + min
+# Body
+	# the syscall takes for granted that we generate between 0 and n
+	# we want an int between n and m
+	# procedure: 	max = max - min
+	# 		number = syscall(max)
+	# 		number = number + min
 	addi	$a1	$a1	1
-	move	$t0	$a0		#t0: minimum
-	sub	$a0	$a1	$a0	#a0: maximum-min
+	move	$t0	$a0		# t0: minimum
+	sub	$a0	$a1	$a0	# a0: maximum-min
 	li	$v0	42
 	syscall
 
 	add	$v0	$a0	$t0
 
-#Epilogue
+# Epilogue
 	move	$a1	$t7
 	move	$a0	$t6
 	jr	$ra
@@ -866,7 +900,12 @@ random_generator:
 
 __JR:
 	jr	$ra
-
+__True:
+	li	$v0	1
+	jr	$ra
+__False:
+	li	$v0	0
+	jr	$ra
 
 
 exit:
