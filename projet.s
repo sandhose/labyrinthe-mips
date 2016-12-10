@@ -671,9 +671,9 @@ WasVisited:
 # Returns : 	$v0	Boolean
 IsOutOfBounds:
 	bltz	$a2	__True
-	bgt	$a2	$a1	__True
+	bge	$a2	$a1	__True
 	bltz	$a3	__True
-	bgt	$a3	$a1	__True
+	bge	$a3	$a1	__True
 	j __False
 
 
@@ -686,21 +686,38 @@ IsOutOfBounds:
 # 		$v1	new y
 GenerateNextBox:
 # Prologue
-	subu	$sp	$sp	28
+	subu	$sp	$sp	32
 	sw	$s0	0($sp)
 	sw	$s1	4($sp)
 	sw	$s2	8($sp)
 	sw	$s3	12($sp)
 	sw	$s4	16($sp)
 	sw	$s5	20($sp)
-	sw	$ra	24($sp)
+	sw	$s6	24($sp)
+	sw	$ra	28($sp)
 	
 # Body
 	move	$s0	$a0	# s0: Original address
 	move	$s1	$a1	# s1: Size
 	move	$s2	$a2	# s2: Original x
 	move	$s3	$a3	# s3: Original y
-	# Try each neighboring cell
+	li 	$s4 	0 	# s4: Counter from 0 to 3 
+				#     Used to generate increasingly random numbers (ie: rand(0,n); n++)
+	move 	$s5 	$a2 	# s6: New x
+	move 	$s6 	$a3 	# s6: New y
+	#
+
+	# Inspect each neighboring cell randomly and says it's the next one you should go to.
+	# n = 0
+	# 1: Do Rand(0,n). Did it pick 0 ? 
+	# 	Yes? Check the next adjacent cell
+	#	No ? Go back to 1
+	# 2: Is it out of bounds ? Was it visited already ?
+	# 	All good ? Save its coordinates to s5 and s6
+	#		   n = n+1 (Decrease the chances of checking the next cell)
+	# 		   Go back to 1
+	# 	Not good ? Go back to 1 without increasing n
+
 
 	# Switch-like structure
 	__CheckRight:
@@ -713,14 +730,15 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckRight_End# if visited, next
 						# else (if unvisited and inbounds),
-		move	$s4	$a2		# save coordinates, next
+		addi 	$s4 	$s4 	1 	# increase counter. Now 50% chance to CheckLeft
+		move 	$s5 	$a2 		# save x, next
 		__CheckRight_End:
 			li	$a0	0
-			li	$a1	1
+			move	$a1	$s4
 			jal	RandomBetween
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
-			beqz	$v0	__CheckLeft	# If Rand(0,1) == 0, go CheckLeft
+			beqz	$v0	__CheckLeft	# If Rand(0,n) == 0, go CheckLeft
 			j	__CheckLeft_End		# Else, try to go to CheckUp
 
 	__CheckLeft:
@@ -733,14 +751,15 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckLeft_End	# if visited, next
 						# if unvisited and inbounds,
-		move	$s4	$a2		# save coordinates, next
+		addi 	$s4 	$s4 	1 	# increase counter. 50 to 33% chance to CheckUp
+		move 	$s5 	$a2 		# save x, next
 		__CheckLeft_End:
 			li	$a0	0
 			li	$a1	2
 			jal	RandomBetween
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
-			beqz	$v0	__CheckUp	# If Rand(0,2) == 0, go CheckUp
+			beqz	$v0	__CheckUp	# If Rand(0,n) == 0, go CheckUp
 			j	__CheckUp_End 		# Else, try to go to CheckDown
 
 	__CheckUp:
@@ -753,14 +772,16 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckUp_End	# if visited, next
 						# if unvisited and inbounds,
-		move	$s5	$a3		# save coordinates, next
+		addi 	$s4 	$s4 	1 	# increase counter. 50 to 25% chance to CheckDown
+		move 	$s5 	$s2		# reset x
+		move 	$s6 	$a3 		# save y, next
 		__CheckUp_End:
 			li	$a0	0
 			li	$a1	3
 			jal	RandomBetween
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
-			beqz	$v0	__CheckDown	# If Rand(0,3) == 0, go CheckDown
+			beqz	$v0	__CheckDown	# If Rand(0,n) == 0, go CheckDown
 			j	__CheckDown_End 	# Else, go EndSwitch
 
 	__CheckDown:
@@ -773,7 +794,8 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckDown_End	# if visited, next
 						# if unvisited and inbounds,
-		move	$s5	$a3		# save coordinates, next
+		move 	$s5 	$s2		# reset x
+		move 	$s6 	$a3 		# save y, next
 		__CheckDown_End:
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
@@ -791,6 +813,8 @@ GenerateNextBox:
 
 	move 	$a0	$s0
 	move 	$a1 	$s1
+	move 	$a2 	$s5
+	move 	$a3 	$s6
 	jal	CalcAddress
 	move	$a0	$v0
 	li	$a1	7
@@ -802,8 +826,9 @@ GenerateNextBox:
 	lw	$s3	12($sp)
 	lw	$s4	16($sp)
 	lw	$s5	20($sp)
-	lw	$ra	24($sp)
-	addu	$sp	$sp	28
+	lw	$s6	24($sp)
+	lw	$ra	28($sp)
+	addu	$sp	$sp	32
 	jr	$ra
 
 
