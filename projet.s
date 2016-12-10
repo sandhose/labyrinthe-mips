@@ -1,8 +1,6 @@
 # projet.s
 
 .data
-Buffer:	.align 2
-	.space 255
 StrSolvedSuffix:
 	.asciiz ".resolu"
 StrTableWidth:
@@ -122,10 +120,20 @@ SolveMode:
 	move	$s2	$v0	# Read file descriptor
 	move	$s3	$v1	# Write file descriptor
 
-	move	$a0	$v0	# Parse file argument: the file descriptor
+	move	$a0	$s2	# Parse file argument: the file descriptor
 	jal	ParseFile
 	move	$s0	$v0	# Table address
 	move	$s1	$v1	# Table size
+
+	move	$a0	$s0
+	move	$a1	$s1
+	jal	FindEntrance
+	move	$a0	$v0
+	move	$s4	$v1
+	jal	PrintInt
+	move	$a0	$s4
+	jal	PrintInt
+
 
 	move	$a0	$s0
 	move	$a1	$s1
@@ -350,13 +358,14 @@ StringLength:
 
 # Parse the next int in a file
 # @param	$a0	The file descriptor
+# @param	$a1	The buffer to use to read a char
 # @return	$v0	The int read
 ParseInt:
 	li	$t0	0	# Value
 	li	$t1	0	# Bytes read
 
 	# $a0 is the file descriptor already passed in arguments
-	la	$a1	Buffer	# Buffer
+	# $a1 is the buffer already passed in arguments
 	li	$a2	1
 
 	__Loop_ParseInt:
@@ -387,15 +396,24 @@ ParseInt:
 # @return	$v0	labyrinth address
 # @return	$v1	labyrinth size
 ParseFile:
-	subu	$sp	$sp	24
+	subu	$sp	$sp	28
 	sw	$ra	($sp)
 	sw	$s0	4($sp)	# $s0: file descriptor
 	sw	$s1	8($sp)	# $s1: table size
 	sw	$s2	12($sp)	# $s2: max offset ($s1 * $s1 * 4)
 	sw	$s3	16($sp)	# $s3: table address
 	sw	$s4	20($sp)	# $s4: current offset
+	sw	$s5	24($sp) # $s5: the buffer used when reading chars
 	move	$s0	$a0
 
+	# Allocate a one byte buffer for reading chars
+	li	$v0	9
+	li	$a0	1
+	syscall
+	move	$s5	$v0
+
+	move	$a0	$s0
+	move	$a1	$s5
 	jal	ParseInt
 	move	$s1	$v0	# Save table size
 	mulu	$s2	$s1	$s1
@@ -408,6 +426,7 @@ ParseFile:
 	li	$s4	0
 	__Loop_ParseFile:
 		move	$a0	$s0
+		move	$a1	$s5
 		jal	ParseInt
 		addu	$t0	$s3	$s4
 		sb	$v0	($t0)
@@ -428,7 +447,8 @@ ParseFile:
 	lw	$s2	12($sp)
 	lw	$s3	16($sp)
 	lw	$s4	20($sp)
-	addu	$sp	$sp	24
+	lw	$s5	24($sp)
+	addu	$sp	$sp	28
 	jr	$ra
 
 # Save a given int ($a0) to the head of a buffer ($a1) with leading zero and trailing space
@@ -452,20 +472,19 @@ SaveNumberToAscii:
 # @param	$a1	Table size
 # @param	$a2	Save file descriptor
 SaveFile:
-	# @TODO: swap variables to have $s0 = address, $s1 = size & $s2 = fd
 	subu	$sp	$sp	32
 	sw	$ra	($sp)
-	sw	$s0	4($sp)	# $s0: file descriptor
+	sw	$s0	4($sp)	# $s0: table address
 	sw	$s1	8($sp)	# $s1: table width
-	sw	$s2	12($sp)	# $s2: table address
+	sw	$s2	12($sp)	# $s2: file descriptor
 	sw	$s3	16($sp)	# $s3: current line
 	sw	$s4	20($sp)	# $s4: current cell
 	sw	$s5	24($sp)	# $s5: current buffer pointer
 	sw	$s6	28($sp) # $s6: initial buffer pointer (heap allocated)
 
-	move	$s0	$a2
+	move	$s0	$a0
 	move	$s1	$a1
-	move	$s2	$a0
+	move	$s2	$a2
 	li	$s3	0
 
 	# Calculate space needed (table width^2 * 3 + 4) for the buffer
@@ -488,10 +507,10 @@ SaveFile:
 	__LoopLine_SaveFile:
 		li	$s4	0
 		__LoopCell_SaveFile:
-			lb	$a0	($s2)
+			lb	$a0	($s0)
 			move	$a1	$s5
 			jal	SaveNumberToAscii
-			addi	$s2	$s2	1	# Move table one byte
+			addi	$s0	$s0	1	# Move table one byte
 			addi	$s5	$s5	3	# Move buffer 3 chars
 			addi	$s4	$s4	1	# current cell++
 			bne	$s4	$s1	__LoopCell_SaveFile
@@ -502,14 +521,14 @@ SaveFile:
 		bne	$s3	$s1	__LoopLine_SaveFile
 
 	li	$v0	15
-	move	$a0	$s0
+	move	$a0	$s2
 	move	$a1	$s6
 	subu	$a2	$s5	$s6	# Calculate buffer size
 	syscall
 
 	# Close filedecriptor
 	li	$v0	16
-	move	$a0	$s0
+	move	$a0	$s2
 	syscall
 
 	lw	$ra	($sp)
@@ -584,6 +603,49 @@ UnsetFlag:
 	not	$t1	$t1		# invert $t2 to unset the flag...
 	and	$t0	$t0	$t1	# ...with an and...
 	sb	$t0	($a0)		# ...and save it
+	jr	$ra
+
+# Find the coordinates of the entrance
+# @param	$a0	Table address
+# @param	$a1	Table size
+# @return	$v0	Entrance x
+# @return	$v1	Entrance y
+FindEntrance:
+	subu	$sp	$sp	24
+	sw	$ra	($sp)
+	sw	$s0	4($sp)
+	sw	$s1	8($sp)
+	sw	$s2	12($sp)
+	sw	$s3	16($sp)
+	sw	$s4	20($sp)
+
+	move	$s0	$a0
+	move	$s1	$a1
+	li	$s2	0
+	mulu	$s3	$a1	$a1
+	__SearchEntrance_Loop:
+		beq	$s2	$s3	__SearchEntrance_EndLoop
+
+		# Check the entrance flag
+		addu	$a0	$s0	$s2
+		li	$a1	4
+		jal	GetFlag
+		addi	$s2	$s2	1
+		beqz	$v0	__SearchEntrance_Loop
+
+	__SearchEntrance_EndLoop:
+	subu	$s2	$s2	1	# We've gone one step too far
+	div	$s2	$s1	# Divide the offset by the size to get the coordinates
+	mfhi	$v0	# return x...
+	mflo	$v1	# ...and y
+
+	lw	$ra	($sp)
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
+	lw	$s3	16($sp)
+	lw	$s4	20($sp)
+	addu	$sp	$sp	24
 	jr	$ra
 
 # Function WasVisited
