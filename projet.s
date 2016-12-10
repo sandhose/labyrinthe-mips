@@ -499,6 +499,17 @@ CalcAddress:
 	add	$v0	$v0	$a0
 	jr	$ra
 
+# Get a flag of a cell
+# @param	$a0	Address of the cell
+# @param	$a1	Flag to get
+# @returns	$v0	= 0 -> flag unset ; > 0 -> flag set
+GetFlag:
+	lbu	$t0	($a0)
+	li	$v0	1
+	sllv	$v0	$v0	$a1	# $v1: 1 << $a1
+	and	$v0	$v0	$t0
+	jr	$ra
+
 # Set a flag of a cell
 # @param	$a0	Address of the cell
 # @param	$a1	Flag to set (0 = least significant byte)
