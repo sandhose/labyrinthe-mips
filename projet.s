@@ -119,7 +119,7 @@ SolveMode:
 
 	move	$a0	$s0	# Table address
 	move	$a1	$s1	# Table size
-	move	$a2	$s2	# File descriptor
+	move	$a2	$s3	# File descriptor
 	jal	SaveFile
 
 	j	exit
@@ -166,8 +166,8 @@ AskSize:
 	j	AskSize
 
 # Ask the user for a filename
-# @return	$v0	The address containing the null-terminated string
-# @return	$v1	The length of the string
+# @param	$a0	The address containing the null-terminated string
+# @return	$v0	The length of the string
 AskFilename:
 # Prologue
 	subu	$sp	$sp	12
@@ -175,16 +175,17 @@ AskFilename:
 	sw	$s0	4($sp)
 	sw	$s1	8($sp)
 
+	move	$s0	$a0	# Here comes the buffer!
+
 # Body
 	li	$v0	4
 	la	$a0	StrAskFilename
 	syscall
 
 	li	$v0	8
-	la	$a0	Buffer
+	move	$a0	$s0
 	li	$a1	255
 	syscall
-	move	$s0	$a0	# Save filename address somewhere
 
 	jal	StringLength
 	move	$s1	$v0	# Save filename length somewhere
@@ -198,8 +199,7 @@ AskFilename:
 	subu	$s1	$s1	1	# String length is now one less
 	__NoNewLine:
 
-	move	$v0	$s0	# Return filename address and its length
-	move	$v1	$s1
+	move	$v0	$s1	# Return the filename's length
 # Epilogue
 	lw	$ra	($sp)
 	lw	$s0	4($sp)
@@ -234,11 +234,17 @@ OpenSolveFDs:
 	sw	$s1	8($sp)
 	sw	$s1	12($sp)
 
+	# Allocate filename buffer
+	li	$v0	9
+	li	$a0	255
+	syscall
+	move	$s0	$v0	# Store the address of the buffer
+
 # Body
 	__OpenSolveFDs:
+	move	$a0	$s0
 	jal	AskFilename
-	move	$s0	$v0	# Store the address of the filename
-	move	$s1	$v1	# Store the length of this filename
+	move	$s1	$v0	# Store the length of this filename
 
 	li	$v0	13
 	move	$a0	$s0
@@ -281,13 +287,22 @@ OpenSolveFDs:
 # @return	$v0	The just opened file descriptor in write mode
 OpenGenerateFD:
 # Prologue
-	subu	$sp	$sp	4
+	subu	$sp	$sp	8
 	sw	$ra	($sp)
+	sw	$s0	4($sp)
+
+	# Allocate filename buffer
+	li	$v0	9
+	li	$a0	255
+	syscall
+	move	$s0	$v0	# Store the address of the buffer
+
 # Body
 	__OpenGenerateFD:
+	move	$a0	$s0
 	jal	AskFilename
 
-	move	$a0	$v0	# Pass the string as syscall argument
+	move	$a0	$s0	# Pass the string as syscall argument
 	li	$v0	13
 	li	$a1	1	# Open for writing
 	li	$a2	0
@@ -297,7 +312,8 @@ OpenGenerateFD:
 
 # Epilogue
 	lw	$ra	($sp)
-	addu	$sp	$sp	4
+	lw	$s0	4($s0)
+	addu	$sp	$sp	8
 	jr	$ra
 
 	__OpenError2:
