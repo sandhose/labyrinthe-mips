@@ -1,16 +1,10 @@
 # projet.s
 
 .data
-seed:
-	.word 0xdeadbeef, 0x13371337
-max_random_float:
-	.float 2147483647.0
 Buffer:	.align 2
 	.space 255
 StrSolvedSuffix:
 	.asciiz ".resolu"
-StrRandomNumber:
-	.asciiz "Random number: "
 StrTableWidth:
 	.asciiz "Table width: "
 StrStoredAt:
@@ -22,13 +16,9 @@ StrMenuInvalid:
 StrAskSize:
 	.asciiz "Labyrinth size? "
 StrSizeInvalid:
-	.asciiz "Labyrinth size must be at least 3\n"
+	.asciiz "Labyrinth size must be at least 2\n"
 StrAskFilename:
 	.asciiz "File name? "
-StrMode:
-	.asciiz "Mode: "
-StrSize:
-	.asciiz " ; Size: "
 StrOpenError:
 	.asciiz "Can't open file\n"
 StrSpace:
@@ -40,6 +30,7 @@ NewLine:
 .globl __start
 
 # Entry point
+# It initializes the RNG, ask for the mode, and jumps to the correct mode
 __start:
 	# Start by seeding MARS' RNG...
 	# ...by getting OS' time...
@@ -59,6 +50,15 @@ __start:
 	beq	$v0	1	GenerateMode
 	beq	$v0	2	SolveMode
 
+# Generate mode
+# It:
+#  - Asks for the table size
+#  - Opens the save file descriptor
+#  - Create the table in memory
+#  - Generate the entrance and exit
+#  - ???
+#  - Print the table to the console
+#  - Saves the labyrinth in the previously opened file descriptor
 GenerateMode:
 	# Ask the table size
 	jal	AskSize
@@ -94,6 +94,15 @@ GenerateMode:
 	# ...and we're done!
 	j	exit
 
+# Generate mode
+# It:
+#  - Asks for the table size
+#  - Opens the save file descriptor
+#  - Create the table in memory
+#  - Generate the entrance and exit
+#  - ???
+#  - Print the table to the console
+#  - Saves the labyrinth in the previously opened file descriptor
 SolveMode:
 	jal	OpenSolveFDs
 	move	$s2	$v0	# Read file descriptor
@@ -116,7 +125,7 @@ SolveMode:
 	j	exit
 
 # Prints the menu
-# Returns : User's choice (1 or 2)
+# @return	$v0	The user's choice (1 or 2)
 MainMenu:
 	# Print "Mode:\n  1. Generate\n  2. Solve\nChoice? "
 	li	$v0	4
@@ -136,8 +145,8 @@ MainMenu:
 	syscall
 	j	MainMenu
 
-# Asks user for the size of the labyrinth. Size must be > 2
-# Returns : $v0: Int, user's choice
+# Asks user for the size of the labyrinth. Size must be > 1
+# @return	$v0	The size of the labyrinth
 AskSize:
 	# Print "Labyrinth size? "
 	li	$v0	4
@@ -147,9 +156,9 @@ AskSize:
 	li	$v0	5
 	syscall
 
-	bgt	$v0	2	__JR
+	bgt	$v0	1	__JR
 
-	# Labyrinth size must be > 2, loop until the choice is valid
+	# Labyrinth size must be > 1, loop until the choice is valid
 	li	$v0	4
 	la	$a0	StrSizeInvalid
 	syscall
@@ -157,8 +166,8 @@ AskSize:
 	j	AskSize
 
 # Ask the user for a filename
-# @returns	$v0	The address containing the null-terminated string
-# 		$v1	The length of the string
+# @return	$v0	The address containing the null-terminated string
+# @return	$v1	The length of the string
 AskFilename:
 # Prologue
 	subu	$sp	$sp	12
@@ -198,7 +207,9 @@ AskFilename:
 	addu	$sp	$sp	12
 	jr	$ra
 
-# Adds the resolved suffix to a given ($a0) string of a given ($a1) length
+# Adds the resolved suffix to a given string of a given length
+# @param	$a0	The address of the string to modify
+# @param	$a1	The length of that string
 AddSolvedSuffix:
 	la	$t1	StrSolvedSuffix
 	addu	$t2	$a0	$a1
@@ -212,6 +223,9 @@ AddSolvedSuffix:
 
 	jr	$ra
 
+# Open the file descriptors needed for solve mode
+# @return	$v0	The file descriptor used to read the labyrinth
+# @return	$v1	The file descriptor used to save the solved labyrinth
 OpenSolveFDs:
 # Prologue
 	subu	$sp	$sp	16
@@ -263,6 +277,8 @@ OpenSolveFDs:
 		syscall
 		j	__OpenSolveFDs
 
+# Open the file descriptor needed for generate mode
+# @return	$v0	The just opened file descriptor in write mode
 OpenGenerateFD:
 # Prologue
 	subu	$sp	$sp	4
@@ -290,6 +306,9 @@ OpenGenerateFD:
 		syscall
 		j	__OpenGenerateFD
 
+# Get a string length (chars before null terminator)
+# @param	$a0	String address
+# @return	$v0	The length of the string
 StringLength:
 	li	$v0	0	# Counter
 	__StringLength:
@@ -301,7 +320,7 @@ StringLength:
 
 # Parse the next int in a file
 # @param	$a0	The file descriptor
-# @returns	$v0	The int read
+# @return	$v0	The int read
 ParseInt:
 	li	$t0	0	# Value
 	li	$t1	0	# Bytes read
@@ -335,8 +354,8 @@ ParseInt:
 
 # Parse a labyrinth file
 # @param	$a0	file descriptor
-# @returns	$v0	labyrinth address
-# @returns	$v1	labyrinth size
+# @return	$v0	labyrinth address
+# @return	$v1	labyrinth size
 ParseFile:
 	subu	$sp	$sp	24
 	sw	$ra	($sp)
@@ -383,6 +402,8 @@ ParseFile:
 	jr	$ra
 
 # Save a given int ($a0) to the head of a buffer ($a1) with leading zero and trailing space
+# @param	$a0	The int to save
+# @param	$a1	The address where to save the chars
 SaveNumberToAscii:
 	li	$t1	10
 	div	$a0	$t1
@@ -396,7 +417,10 @@ SaveNumberToAscii:
 	sb	$t0	2($a1)
 	jr	$ra
 
-# Save a labyrinth ($a0: address ; $a1: width) to a file descriptor ($a2)
+# Save a labyrinth to a file descriptor
+# @param	$a0	Table address
+# @param	$a1	Table size
+# @param	$a2	Save file descriptor
 SaveFile:
 	# @TODO: swap variables to have $s0 = address, $s1 = size & $s2 = fd
 	subu	$sp	$sp	32
@@ -469,10 +493,9 @@ SaveFile:
 	addu	$sp	$sp	32
 	jr	$ra
 
-# Function CreateTable
-# Pre-conditions: $a0 >=0
-# Parameters :	$a0: Table width (as in how many integers)
-# Returns : Address of the first int in the table in $v0
+# Create a table for a given size
+# @param	$a0	Table size (must be > 0)
+# @return	$v0	The table address
 CreateTable:
 	mul	$a0	$a0	$a0
 	li	$v0	9	# malloc of size n*n
@@ -502,7 +525,7 @@ CalcAddress:
 # Get a flag of a cell
 # @param	$a0	Address of the cell
 # @param	$a1	Flag to get
-# @returns	$v0	= 0 -> flag unset ; > 0 -> flag set
+# @return	$v0	= 0 -> flag unset ; > 0 -> flag set
 GetFlag:
 	lbu	$t0	($a0)
 	li	$v0	1
@@ -534,13 +557,12 @@ UnsetFlag:
 	jr	$ra
 
 
-# Function GenerateExits
-# Pre-conditions:
-# Parameters :
-# Returns : -
+# Generates the entrance and the exit of the labyrinth
+# @param	$a0	Table address
+# @param	$a1	Table size
 GenerateExits:
 #Prologue
-	subu	$sp	$sp	32
+	subu	$sp	$sp	28
 	sw	$ra	0($sp)
 	sw	$s0	4($sp)		# $s0: Table adress
 	sw	$s1	8($sp)		# $s1: Table size
@@ -548,7 +570,6 @@ GenerateExits:
 	sw	$s3	16($sp)		# $s3: Entrance cell
 	sw	$s4	20($sp)		# $s4: Exit column
 	sw	$s5	24($sp)		# $s4: Exit cell
-	sw	$s6	28($sp)		# $s6: Horizontal or vertical
 
 #Body
 	move	$s0	$a0	# Table address
@@ -615,8 +636,7 @@ GenerateExits:
 	lw	$s3	16($sp)
 	lw	$s4	20($sp)
 	lw	$s5	24($sp)
-	lw	$s6	28($sp)
-	addu	$sp	$sp	32
+	addu	$sp	$sp	28
 	jr	$ra
 
 
