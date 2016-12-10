@@ -572,7 +572,84 @@ UnsetFlag:
 	sb	$t0	($a0)		# ...and save it
 	jr	$ra
 
+# Function WasVisited
+# @param	$a0	Address
+# Returns : 	$v0	Boolean
+#
+# If a box was never visited then all its walls are there
+# If all the walls are up then the first four bits are 1
+# 00001111 in binary is 15 in decimal
+# So, 15 AND (the box) should equal 15
+WasVisited:
+	lb	$t7	$a0
+	andi	$t7	$t7	15
+	beq	$t7	15	__False
+	#Else
+	__True: #already visited
+	li	$v0	1
+	jr	$ra
+	__False: #never visited
+	li	$v0	0
+	jr	$ra
+	
 
+
+# Function GenerateNextBox
+# @param	$a0	Address
+# @param	$a1	Size
+# @param	$a2	x coordinate
+# @param	$a3	y coordinate
+# Returns : 	$v0	new x
+#		$v1	new y
+GenerateNextBox:
+	move	$a0	$s0
+	jal	CalcAddress
+	move	$a0	$v0		# $a0: &(t[x][y])
+	
+	#Try each neighboring cell
+	
+	#Switch-like structure
+	#__CheckRight:
+	li	$a1	1		#1st bit = Right wall
+	jal	GetFlag
+	beqz	$v0	__CheckLeft	#If wall is down, try another one
+	#Else
+	li	$a2	0		#Tear down my right wall
+	jal	SetFlag
+	addu	$a0	$a0	1	#Next box is x+1, y
+	li	$a2	3		#3rd bit = Left wall
+	jal	SetFlag			#Tear down its left wall
+	j	__GenerateNextBox_EndSwitch
+	
+	__CheckLeft:
+	li	$a2	3		#3rd bit = Left wall
+	jal	GetFlag
+	beqz	$v0	__CheckTop	#If wall is down, try another one
+	#Else				#Else
+	li	$a3	1		#Tear down my left wall
+	jal	SetFlag
+	subu	$a0	$a0	1	#Next box is x+1, y
+	li	$a2	1		#3rd bit = Left wall
+	jal	SetFlag			#Tear down its left wall
+	j	__GenerateNextBox_EndSwitch
+	
+	__CheckTop:
+	li	$a2	0		#0th bit = Top wall
+	jal	GetFlag
+	beqz	$v0	__CheckBottom	#If wall is down, try another one
+	subu	$a1	$a1	1	#Else, next box is x, y-1 
+	j	__GenerateNextBox_EndSwitch
+
+	__CheckBottom:
+	li	$a2	2		#2nd bit = Bottom wall
+	jal	GetFlag
+	beqz	$v0	__Pop		#If wall is down, go back
+	addu	$a1	$a1	1	#Else, next box is x, y+1 
+	j	__GenerateNextBox_EndSwitch
+	
+	__GenerateNextBox_EndSwitch:
+	
+# Function GenerateExits
 # Generates the entrance and the exit of the labyrinth
 # @param	$a0	Table address
 # @param	$a1	Table size
