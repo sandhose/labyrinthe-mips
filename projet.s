@@ -458,20 +458,19 @@ SaveNumberToAscii:
 # @param	$a1	Table size
 # @param	$a2	Save file descriptor
 SaveFile:
-	# @TODO: swap variables to have $s0 = address, $s1 = size & $s2 = fd
 	subu	$sp	$sp	32
 	sw	$ra	($sp)
-	sw	$s0	4($sp)	# $s0: file descriptor
+	sw	$s0	4($sp)	# $s0: table address
 	sw	$s1	8($sp)	# $s1: table width
-	sw	$s2	12($sp)	# $s2: table address
+	sw	$s2	12($sp)	# $s2: file descriptor
 	sw	$s3	16($sp)	# $s3: current line
 	sw	$s4	20($sp)	# $s4: current cell
 	sw	$s5	24($sp)	# $s5: current buffer pointer
 	sw	$s6	28($sp) # $s6: initial buffer pointer (heap allocated)
 
-	move	$s0	$a2
+	move	$s0	$a0
 	move	$s1	$a1
-	move	$s2	$a0
+	move	$s2	$a2
 	li	$s3	0
 
 	# Calculate space needed (table width^2 * 3 + 4) for the buffer
@@ -494,10 +493,10 @@ SaveFile:
 	__LoopLine_SaveFile:
 		li	$s4	0
 		__LoopCell_SaveFile:
-			lb	$a0	($s2)
+			lb	$a0	($s0)
 			move	$a1	$s5
 			jal	SaveNumberToAscii
-			addi	$s2	$s2	1	# Move table one byte
+			addi	$s0	$s0	1	# Move table one byte
 			addi	$s5	$s5	3	# Move buffer 3 chars
 			addi	$s4	$s4	1	# current cell++
 			bne	$s4	$s1	__LoopCell_SaveFile
@@ -508,14 +507,14 @@ SaveFile:
 		bne	$s3	$s1	__LoopLine_SaveFile
 
 	li	$v0	15
-	move	$a0	$s0
+	move	$a0	$s2
 	move	$a1	$s6
 	subu	$a2	$s5	$s6	# Calculate buffer size
 	syscall
 
 	# Close filedecriptor
 	li	$v0	16
-	move	$a0	$s0
+	move	$a0	$s2
 	syscall
 
 	lw	$ra	($sp)
