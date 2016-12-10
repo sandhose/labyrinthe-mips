@@ -1,8 +1,6 @@
 # projet.s
 
 .data
-Buffer:	.align 2
-	.space 255
 StrSolvedSuffix:
 	.asciiz ".resolu"
 StrTableWidth:
@@ -108,7 +106,7 @@ SolveMode:
 	move	$s2	$v0	# Read file descriptor
 	move	$s3	$v1	# Write file descriptor
 
-	move	$a0	$v0	# Parse file argument: the file descriptor
+	move	$a0	$s2	# Parse file argument: the file descriptor
 	jal	ParseFile
 	move	$s0	$v0	# Table address
 	move	$s1	$v1	# Table size
@@ -336,13 +334,14 @@ StringLength:
 
 # Parse the next int in a file
 # @param	$a0	The file descriptor
+# @param	$a1	The buffer to use to read a char
 # @return	$v0	The int read
 ParseInt:
 	li	$t0	0	# Value
 	li	$t1	0	# Bytes read
 
 	# $a0 is the file descriptor already passed in arguments
-	la	$a1	Buffer	# Buffer
+	# $a1 is the buffer already passed in arguments
 	li	$a2	1
 
 	__Loop_ParseInt:
@@ -373,15 +372,24 @@ ParseInt:
 # @return	$v0	labyrinth address
 # @return	$v1	labyrinth size
 ParseFile:
-	subu	$sp	$sp	24
+	subu	$sp	$sp	28
 	sw	$ra	($sp)
 	sw	$s0	4($sp)	# $s0: file descriptor
 	sw	$s1	8($sp)	# $s1: table size
 	sw	$s2	12($sp)	# $s2: max offset ($s1 * $s1 * 4)
 	sw	$s3	16($sp)	# $s3: table address
 	sw	$s4	20($sp)	# $s4: current offset
+	sw	$s5	24($sp) # $s5: the buffer used when reading chars
 	move	$s0	$a0
 
+	# Allocate a one byte buffer for reading chars
+	li	$v0	9
+	li	$a0	1
+	syscall
+	move	$s5	$v0
+
+	move	$a0	$s0
+	move	$a1	$s5
 	jal	ParseInt
 	move	$s1	$v0	# Save table size
 	mulu	$s2	$s1	$s1
@@ -394,6 +402,7 @@ ParseFile:
 	li	$s4	0
 	__Loop_ParseFile:
 		move	$a0	$s0
+		move	$a1	$s5
 		jal	ParseInt
 		addu	$t0	$s3	$s4
 		sb	$v0	($t0)
@@ -414,7 +423,8 @@ ParseFile:
 	lw	$s2	12($sp)
 	lw	$s3	16($sp)
 	lw	$s4	20($sp)
-	addu	$sp	$sp	24
+	lw	$s5	24($sp)
+	addu	$sp	$sp	28
 	jr	$ra
 
 # Save a given int ($a0) to the head of a buffer ($a1) with leading zero and trailing space
