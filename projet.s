@@ -79,6 +79,20 @@ GenerateMode:
 	move	$a0	$s0
 	move	$a1	$s1
 	jal	GenerateExits
+	# x and y coordinates of the entrance
+	move	$s3	$v0
+	move	$s4	$v1
+	
+	# Print memory
+	move	$a0	$s0
+	move	$a1	$s1
+	jal	PrintTable
+	
+	move	$a0	$s0
+	move	$a1	$s1
+	move	$a2	$s3
+	move	$a3	$s4
+	jal	GenerateNextBox
 
 	# Print memory
 	move	$a0	$s0
@@ -609,6 +623,15 @@ IsOutOfBounds:
 # Returns : 	$v0	new x
 # 		$v1	new y
 GenerateNextBox:
+# Prologue
+	subu	$sp	$sp	20
+	sw	$s0	0($sp)
+	sw	$s1	4($sp)
+	sw	$s2	8($sp)
+	sw	$s3	12($sp)
+	sw	$ra	16($sp)
+	
+# Body
 	move	$s0	$a0
 	move	$s1	$a1
 
@@ -628,12 +651,12 @@ GenerateNextBox:
 						# else (if unvisited and inbounds),
 		move	$s2	$a2		# save coordinates, next
 		__CheckRight_End:
-			move	$a0	$s0		# Reset address and size
-			move	$a1	$s1
-			subu	$a2	$a2	1	# reset x
 			li	$a0	0
 			li	$a1	1
 			jal	RandomBetween
+			move	$a0	$s0		# Reset address and size
+			move	$a1	$s1
+			subu	$a2	$a2	1	# reset x
 			beqz	$v0	__CheckLeft	# If Rand(0,1) == 0, go CheckLeft
 			addu	$a2	$a2	1	# Else go CheckUp
 			j	__CheckUp
@@ -649,12 +672,12 @@ GenerateNextBox:
 						# if unvisited and inbounds,
 		move	$s2	$a2		# save coordinates, next
 		__CheckLeft_End:
-			move	$a0	$s0		# Reset address and size
-			move	$a1	$s1
-			addu	$a2	$a2	1	# reset x
 			li	$a0	0
 			li	$a1	2
 			jal	RandomBetween
+			move	$a0	$s0		# Reset address and size
+			move	$a1	$s1
+			addu	$a2	$a2	1	# reset x
 			beqz	$v0	__CheckUp	# If Rand(0,2) == 0, go CheckUp
 			addu	$a2	$a2	1	# Else go CheckDown
 			j	__CheckDown
@@ -671,12 +694,12 @@ GenerateNextBox:
 		move	$s2	$a2
 		move	$s3	$a3		# save coordinates, next
 		__CheckUp_End:
-			move	$a0	$s0		# Reset address and size
-			move	$a1	$s1
-			subu	$a3	$a3	1	# reset y
 			li	$a0	0
 			li	$a1	3
 			jal	RandomBetween
+			move	$a0	$s0		# Reset address and size
+			move	$a1	$s1
+			subu	$a3	$a3	1	# reset y
 			beqz	$v0	__CheckDown	# If Rand(0,3) == 0, go CheckDown
 			addu	$a2	$a2	1	# Else go EndSwitch
 			j	__GenerateNextBox_EndSwitch
@@ -690,18 +713,28 @@ GenerateNextBox:
 		jal	WasVisited
 		bnez	$v0	__CheckDown_End	# if visited, next
 						# if unvisited and inbounds,
+		move	$s2	$a2
+		move	$s3	$a3		# save coordinates, next
 		__CheckDown_End:
 			move	$a0	$s0		# Reset address and size
 			move	$a1	$s1
-			addu	$a3	$a3	1	# reset y
 			#j	__GenerateNextBox_EndSwitch
 
 	__GenerateNextBox_EndSwitch:
-	li	$a2	0		# Tear down my right wall
+	move	$a2	$s2
+	move	$a3	$s3
+	jal	CalcAddress
+	move	$a0	$v0
+	li	$a1	7
 	jal	SetFlag
-	addu	$a0	$a0	1	# Next box is x+1, y
-	li	$a2	3		# 3rd bit = Left wall
-	jal	SetFlag			# Tear down its left wall
+#Epilogue
+	lw	$s0	0($sp)
+	lw	$s1	4($sp)
+	lw	$s2	8($sp)
+	lw	$s3	12($sp)
+	lw	$ra	16($sp)
+	addu	$sp	$sp	20
+	jr	$ra
 
 
 # Generates the entrance and the exit of the labyrinth
@@ -711,7 +744,7 @@ GenerateExits:
 #Prologue
 	subu	$sp	$sp	28
 	sw	$ra	0($sp)
-	sw	$s0	4($sp)		# $s0: Table adress
+	sw	$s0	4($sp)		# $s0: Table address
 	sw	$s1	8($sp)		# $s1: Table size
 	sw	$s2	12($sp)		# $s2: Entrance column
 	sw	$s3	16($sp)		# $s3: Entrance cell
@@ -774,6 +807,9 @@ GenerateExits:
 	move	$a0	$v0
 	li	$a1	5	# 5 = exit flag
 	jal	SetFlag		# set entrance
+	
+	move	$v0	$s2	# Return entrance coordinates
+	move	$v1	$s3
 
 # Epilogue
 	lw	$ra	0($sp)
