@@ -134,11 +134,18 @@ SolveMode:
 	move	$a0	$s0
 	move	$a1	$s1
 	jal	FindEntrance
-	move	$a0	$v0
-	move	$s4	$v1
-	jal	PrintInt
-	move	$a0	$s4
-	jal	PrintInt
+
+	move	$a0	$s0
+	move	$a1	$s1
+	move	$a2	$v0
+	move	$a3	$v1
+	jal	SolveLabyrinth
+
+	# Clean the viewed flag
+	move	$a0	$s0
+	move	$a1	$s1
+	li	$a2	7
+	jal	CleanFlag
 
 
 	move	$a0	$s0
@@ -625,9 +632,9 @@ CleanFlag:
 	move	$a1	$a2
 
 	__CleanFlag_Loop:
-		addu	$a0	$a0	1
 		jal	UnsetFlag
-		blt	$a0	$s0	__CleanFlag_Loop
+		addu	$a0	$a0	1
+		bne	$a0	$s0	__CleanFlag_Loop
 
 	lw	$ra	($sp)
 	lw	$s0	4($sp)
@@ -706,21 +713,6 @@ FindEntrance:
 	addu	$sp	$sp	24
 	jr	$ra
 
-# Function WasVisited
-# @param	$a0	Address
-# Returns : 	$v0	Boolean
-#
-# If a box was never visited then all its walls are there
-# If all the walls are up then the first four bits are 1
-# 00001111 in binary is 15 in decimal
-# So, 15 AND (the box) should equal 15
-WasVisited:
-	lb	$t7	0($a0)
-	andi	$t7	$t7	15
-	beq	$t7	15	__False
-	# Else
-	j	__True
-
 # Function IsOutOfBounds
 # @param	$a0	-
 # @param	$a1	Size
@@ -740,10 +732,11 @@ IsOutOfBounds:
 # @param	$a1	Size
 # @param	$a2	x coordinate
 # @param	$a3	y coordinate
+# @param	$t9	1 if solving mode, 0 otherwise (checks walls)
 # @return 	$v0	the next direction
 GenerateNextDirection:
 # Prologue
-	subu	$sp	$sp	32
+	subu	$sp	$sp	36
 	sw	$s0	0($sp)
 	sw	$s1	4($sp)
 	sw	$s2	8($sp)
@@ -751,7 +744,8 @@ GenerateNextDirection:
 	sw	$s4	16($sp)
 	sw	$s5	20($sp)
 	sw	$s6	24($sp)
-	sw	$ra	28($sp)
+	sw	$s7	28($sp)
+	sw	$ra	32($sp)
 
 # Body
 	move	$s0	$a0	# s0: Original address
@@ -762,6 +756,7 @@ GenerateNextDirection:
 				#     Used to generate increasingly random numbers (ie: rand(0,n); n++)
 	li	$s5	-1	# s5: Returned direction
 	li	$s6	0	# s6: Current direction
+	move	$s7	$t9	# s7: 1 if solving mode
 
 	# This loops through all the four directions (0..3)
 	__GenerateNextBox_Loop:
@@ -782,8 +777,22 @@ GenerateNextDirection:
 		jal	CalcAddress
 		move	$a0	$v0
 		# ...or already visited
-		jal	WasVisited
+		li	$a1	7
+		jal	GetFlag
 		bnez	$v0	__GenerateNextBox_LoopContinue
+
+		# Check the presence of walls in solve mode
+		beqz	$s7	__GenerateNextBox_NoWalls
+		move	$a0	$s0
+		move	$a1	$s1
+		move	$a2	$s2
+		move	$a3	$s3
+		jal	CalcAddress
+		move	$a0	$v0
+		move	$a1	$s6
+		jal	GetFlag
+		bnez	$v0	__GenerateNextBox_LoopContinue
+		__GenerateNextBox_NoWalls:
 
 		# Now that we checked that we can go to this cell,
 		# Lets random between 0 and [the number of direction already checked]...
@@ -817,8 +826,9 @@ GenerateNextDirection:
 	lw	$s4	16($sp)
 	lw	$s5	20($sp)
 	lw	$s6	24($sp)
-	lw	$ra	28($sp)
-	addu	$sp	$sp	32
+	lw	$s7	28($sp)
+	lw	$ra	32($sp)
+	addu	$sp	$sp	36
 	jr	$ra
 
 # Generate the labyrinth
@@ -865,6 +875,7 @@ GenerateLabyrinth:
 		move	$a1	$s1
 		move	$a2	$s4
 		move	$a3	$s5
+		li	$t9	0
 		jal	GenerateNextDirection
 		move	$s6	$v0
 
@@ -921,6 +932,133 @@ GenerateLabyrinth:
 
 
 	__Generate_End:
+	lw	$ra	0($sp)
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
+	lw	$s3	16($sp)
+	lw	$s4	20($sp)
+	lw	$s5	24($sp)
+	lw	$s6	28($sp)
+	addu	$sp	$sp	32
+	jr	$ra
+
+# Solve the labyrinth
+# @param	$a0	Table address
+# @param	$a1	Table size
+# @param	$a2	Entrance X
+# @param	$a3	Entrance y
+SolveLabyrinth:
+	subu	$sp	$sp	32
+	sw	$ra	0($sp)
+	sw	$s0	4($sp)		# $s0: Table address
+	sw	$s1	8($sp)		# $s1: Table size
+	sw	$s2	12($sp)		# $s2: Entrance X
+	sw	$s3	16($sp)		# $s3: Entrance Y
+	sw	$s4	20($sp)		# $s4: Current X
+	sw	$s5	24($sp)		# $s5: Current Y
+	sw	$s6	28($sp)		# $s6: Temporary direction storage
+
+	# Load all arguments
+	move	$s0	$a0
+	move	$s1	$a1
+	move	$s2	$a2
+	move	$s3	$a3
+	move	$s4	$a2
+	move	$s5	$a3
+
+	# Mark the entrance as visited
+	jal	CalcAddress
+	move	$a0	$v0
+	li	$a1	7
+	jal	SetFlag
+
+	# Main generation loop
+	__Solve_Loop:
+		# Stack the current cell
+		subu	$sp	$sp	8
+		sw	$s4	($sp)
+		sw	$s5	4($sp)
+
+		# Compute the next direction to go
+		move	$a0	$s0
+		move	$a1	$s1
+		move	$a2	$s4
+		move	$a3	$s5
+		li	$t9	1
+		jal	GenerateNextDirection
+		move	$s6	$v0
+
+		# If no direction is available (= -1), unstack to the previous cell
+		beq	$s6	-1	__Solve_Unstack
+
+		# Move to the next cell
+		move	$a0	$s4
+		move	$a1	$s5
+		move	$a2	$s6
+		jal	MoveCell
+		move	$s4	$v0
+		move	$s5	$v1
+
+		# Compute the cell address
+		move	$a0	$s0
+		move	$a1	$s1
+		move	$a2	$s4
+		move	$a3	$s5
+		jal	CalcAddress
+
+		# Check if the cell is the exit
+		move	$a0	$v0
+		li	$a1	5
+		jal	GetFlag
+		bnez	$v0	__Solve_EndLoop
+
+		# Mark it as seen
+		li	$a1	7
+		jal	SetFlag
+
+		move	$a0	$s0
+		move	$a1	$s1
+		jal	PrintTable
+
+		# ...and loop!
+		j	__Solve_Loop
+
+
+		# Unstack the previous cell
+		__Solve_Unstack:
+		lw	$s4	($sp)
+		lw	$s5	4($sp)
+		addu	$sp	$sp	8
+		# ...and loop without re-stacking the cell
+		j	__Solve_Loop
+
+
+
+	__Solve_EndLoop:
+		lw	$s4	($sp)
+		lw	$s5	4($sp)
+		addu	$sp	$sp	8
+
+		# Compute the cell address
+		move	$a0	$s0
+		move	$a1	$s1
+		move	$a2	$s4
+		move	$a3	$s5
+		jal	CalcAddress
+
+		move	$a0	$v0
+		li	$a1	4
+		jal	GetFlag
+		bnez	$v0	__Solve_End
+
+		li	$a1	6
+		jal	SetFlag
+
+		j	__Solve_EndLoop
+
+	__Solve_End:
+
 	lw	$ra	0($sp)
 	lw	$s0	4($sp)
 	lw	$s1	8($sp)
