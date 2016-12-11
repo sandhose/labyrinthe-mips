@@ -476,7 +476,7 @@ SaveNumberToAscii:
 	addu	$t1	$t1	48
 	sb	$t0	($a1)
 	sb	$t1	1($a1)
-	li	$t0	32	# acii(32) = Space
+	li	$t0	32	# ascii(32) = Space
 	sb	$t0	2($a1)
 	jr	$ra
 
@@ -525,12 +525,12 @@ SaveFile:
 			jal	SaveNumberToAscii
 			addi	$s0	$s0	1	# Move table one byte
 			addi	$s5	$s5	3	# Move buffer 3 chars
-			addi	$s4	$s4	1	# current cell++
+			addi	$s4	$s4	1	# Current cell++
 			bne	$s4	$s1	__LoopCell_SaveFile
 
 		lb	$t0	NewLine
 		sb	$t0	-1($s5)	# Replace last char (a space) in buffer with \n
-		addi	$s3	$s3	1	# current line++
+		addi	$s3	$s3	1	# Current line++
 		bne	$s3	$s1	__LoopLine_SaveFile
 
 	li	$v0	15
@@ -599,10 +599,10 @@ GetFlag:
 # @param	$a0	Address of the cell
 # @param	$a1	Flag to set (0 = least significant byte)
 SetFlag:
-	lbu	$t0	($a0)		# load current value in $t0
+	lbu	$t0	($a0)		# Load current value in $t0
 	li	$t1	1
 	sllv	$t1	$t1	$a1	# $t1: 1 << N (N = flag to set)
-	or	$t0	$t0	$t1	# turn on the flag...
+	or	$t0	$t0	$t1	# Turn on the flag...
 	sb	$t0	($a0)		# ...and save it
 	jr	$ra
 
@@ -610,10 +610,10 @@ SetFlag:
 # @param	$a0	Address of the cell
 # @param	$a1	Flag to set (0 = least significant byte)
 UnsetFlag:
-	lbu	$t0	($a0)		# load current value in $t1
+	lbu	$t0	($a0)		# Load current value in $t1
 	li	$t1	1
 	sllv	$t1	$t1	$a1	# $t2: 1 << N (N = flag to unset)
-	not	$t1	$t1		# invert $t2 to unset the flag...
+	not	$t1	$t1		# Invert $t2 to unset the flag...
 	and	$t0	$t0	$t1	# ...with an and...
 	sb	$t0	($a0)		# ...and save it
 	jr	$ra
@@ -813,14 +813,14 @@ GenerateNextDirection:
 		move	$s5	$s6
 
 		__GenerateNextBox_LoopContinue:
-		# current direction++, and loop
+		# Current direction++, and loop
 		addi	$s6	$s6	1
 		blt	$s6	4	__GenerateNextBox_Loop
 
-	# return the selected direction
+	# Return the selected direction
 	move	$v0	$s5
 
-	# restore the arguments (usefull for chain calls)
+	# Restore the arguments (usefull for chain calls)
 	move	$a0	$s0
 	move	$a1	$s1
 	move	$a2	$s2
@@ -914,7 +914,7 @@ GenerateLabyrinth:
 		move	$a0	$v0
 		move	$a1	$s6	# Destroy the second wall
 		jal	UnsetFlag
-		li	$a1	7	# and mark the cell as visited
+		li	$a1	7	# And mark the cell as visited
 		jal	SetFlag
 
 		# ...and loop!
@@ -1138,7 +1138,7 @@ GenerateExits:
 	jal	CalcAddress
 	move	$a0	$v0
 	li	$a1	4	# 4 = entrance flag
-	jal	SetFlag		# set entrance
+	jal	SetFlag		# Set entrance
 
 	move	$a0	$s0
 	move	$a1	$s1
@@ -1147,7 +1147,7 @@ GenerateExits:
 	jal	CalcAddress
 	move	$a0	$v0
 	li	$a1	5	# 5 = exit flag
-	jal	SetFlag		# set entrance
+	jal	SetFlag		# Set entrance
 
 	move	$v0	$s2	# Return entrance coordinates
 	move	$v1	$s3
@@ -1166,26 +1166,25 @@ GenerateExits:
 
 
 # Function PrintTable
-# Parameters : 	$a0: address of the first integer in the table
-# 		$a1: width of the table (as in how many integers)
-# Pre-conditions: $a0 >=0
-# Returns: -
+# @param 	$a0 	Table address
+# 		$a1 	Table size
+# @pre		Address >=0
 PrintTable:
 # Prologue:
 	subu	$sp	$sp	4
 	sw	$ra	0($sp)
 # Body:
-	# mul	$a1 	$a1	$a1
 	move	$t0	$a0	# Table address
 	move	$t1	$a1	# Table size
-	# printing "Table width: X"
+
+	# Printing "Table width: X"
 	la	$a0	StrTableWidth
 	li	$v0	4
 	syscall
 	move	$a0	$t1
 	jal	PrintInt
 
-	# printing "stored at X"
+	# Printing "stored at X"
 	la	$a0	StrStoredAt
 	li	$v0	4
 	syscall
@@ -1204,20 +1203,20 @@ PrintTable:
 		__Loop_PrintLine:
 			bge	$t5	$t1	__Fin_Loop_PrintLine
 			add	$t4	$t0	$t3	# t4: Address of the first int of the table + offset
-			# print integer in memory at address $t4
+			# Print integer in memory at address $t4
 			lbu	$a0	0($t4)
 			li	$v0	1
 			syscall
 			jal	PrintSpace
 
-			addi	$t3	$t3	1	# increment offset
+			addi	$t3	$t3	1	# Increment offset
 			addi	$t5	$t5	1
 			j	__Loop_PrintLine
 		__Fin_Loop_PrintLine:
 		jal	PrintNewline
 		j	__Loop_PrintTable
 __Fin_Loop_PrintTable:
-	# print newline
+	# Print newline
 	la	$a0	NewLine
 	li	$v0	4
 	syscall
@@ -1283,9 +1282,9 @@ RandomBetween:
 	move	$t7	$a1
 	move	$t6	$a0
 # Body
-	# the syscall takes for granted that we generate between 0 and n
-	# we want an int between n and m
-	# procedure: 	max = max - min
+	# The syscall takes for granted that we generate between 0 and n
+	# We want an int between n and m
+	# Procedure: 	max = max - min
 	# 		number = syscall(max)
 	# 		number = number + min
 	addi	$a1	$a1	1
