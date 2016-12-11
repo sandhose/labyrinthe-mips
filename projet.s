@@ -771,7 +771,7 @@ GenerateNextDirection:
 		move	$a1	$s1
 		move	$a2	$v0
 		move	$a3	$v1
-		# ...out of bount...
+		# ...out of bound...
 		jal	IsOutOfBounds
 		bnez	$v0	__GenerateNextBox_LoopContinue
 		jal	CalcAddress
@@ -781,34 +781,41 @@ GenerateNextDirection:
 		jal	GetFlag
 		bnez	$v0	__GenerateNextBox_LoopContinue
 
-		# Check the presence of walls in solve mode
+		# If we're in solve mode, jump
 		beqz	$s7	__GenerateNextBox_NoWalls
-		move	$a0	$s0
-		move	$a1	$s1
-		move	$a2	$s2
-		move	$a3	$s3
-		jal	CalcAddress
-		move	$a0	$v0
-		move	$a1	$s6
-		jal	GetFlag
-		bnez	$v0	__GenerateNextBox_LoopContinue
+		# Else, check the presence of walls in the path
+			# Get the address of the current cell
+			move	$a0	$s0
+			move	$a1	$s1
+			move	$a2	$s2
+			move	$a3	$s3
+			jal	CalcAddress
+			# Check if there's a wall in the path
+			# The direction value is also the flag number of the corresponding wall
+			# Direction "up" == Upper wall's bit number == 0
+			move	$a0	$v0
+			move	$a1	$s6
+			jal	GetFlag
+			# If there's a wall, jump
+			bnez	$v0	__GenerateNextBox_LoopContinue
 		__GenerateNextBox_NoWalls:
 
 		# Now that we checked that we can go to this cell,
-		# Lets random between 0 and [the number of direction already checked]...
+		# Lets random between 0 and [the number of valid neighbors already found]
 		li	$a0	0
 		move	$a1	$s4
 		jal	RandomBetween
 		addi	$s4	$s4	1
+		# If Rand(0, n) > 0 Then Continue
 		bnez	$v0	__GenerateNextBox_LoopContinue
-
-		# ...and assign the current direction if the number is right (= 0)
+		# Else, consider this direction valid
+		# Save it. But it might be erazed next loop.
 		move	$s5	$s6
 
 		__GenerateNextBox_LoopContinue:
 		# current direction++, and loop
 		addi	$s6	$s6	1
-		bne	$s6	4	__GenerateNextBox_Loop
+		blt	$s6	4	__GenerateNextBox_Loop
 
 	# return the selected direction
 	move	$v0	$s5
@@ -818,7 +825,7 @@ GenerateNextDirection:
 	move	$a1	$s1
 	move	$a2	$s2
 	move	$a3	$s3
-#Epilogue
+# Epilogue
 	lw	$s0	0($sp)
 	lw	$s1	4($sp)
 	lw	$s2	8($sp)
@@ -1069,7 +1076,7 @@ SolveLabyrinth:
 # @param	$a0	Table address
 # @param	$a1	Table size
 GenerateExits:
-#Prologue
+# Prologue
 	subu	$sp	$sp	28
 	sw	$ra	0($sp)
 	sw	$s0	4($sp)		# $s0: Table address
