@@ -90,29 +90,21 @@ GenerateMode:
 	move	$a1	$s1
 	move	$a2	$s3
 	move	$a3	$s4
-	jal	GenerateNextBox
+	jal	GenerateLabyrinth
 
-	move	$a0	$s3
-	move	$a1	$s4
-	move	$a2	$v0
-	jal	MoveCell
-
+	mulu	$s5	$s1	$s1
+	addu	$s5	$s5	$s0
 	move	$a0	$s0
-	move	$a1	$s1
-	move	$a2	$v0
-	move	$a3	$v1
-	jal	CalcAddress
-
-	move	$a0	$v0
 	li	$a1	7
-	jal	SetFlag
+	__GenerateMode_Loop:
+		jal	UnsetFlag
+		addu	$a0	$a0	1
+		blt	$a0	$s5	__GenerateMode_Loop
 
 	# Print memory
 	move	$a0	$s0
 	move	$a1	$s1
 	jal	PrintTable
-	move	$a0	$s6
-	jal	PrintInt
 
 	# Save the labyrinth in the file
 	move	$a0	$s0	# Table address
@@ -724,13 +716,13 @@ IsOutOfBounds:
 	j __False
 
 
-# Function GenerateNextBox
+# Function GenerateNextDirection
 # @param	$a0	Address
 # @param	$a1	Size
 # @param	$a2	x coordinate
 # @param	$a3	y coordinate
 # @return 	$v0	the next direction
-GenerateNextBox:
+GenerateNextDirection:
 # Prologue
 	subu	$sp	$sp	32
 	sw	$s0	0($sp)
@@ -792,6 +784,12 @@ GenerateNextBox:
 
 	# return the selected direction
 	move	$v0	$s5
+
+	# restore the arguments (usefull for chain calls)
+	move	$a0	$s0
+	move	$a1	$s1
+	move	$a2	$s2
+	move	$a3	$s3
 #Epilogue
 	lw	$s0	0($sp)
 	lw	$s1	4($sp)
@@ -804,6 +802,99 @@ GenerateNextBox:
 	addu	$sp	$sp	32
 	jr	$ra
 
+# Generate the labyrinth
+# @param	$a0	Table address
+# @param	$a1	Table size
+# @param	$a2	Entrance X
+# @param	$a3	Entrance y
+GenerateLabyrinth:
+	subu	$sp	$sp	32
+	sw	$ra	0($sp)
+	sw	$s0	4($sp)		# $s0: Table address
+	sw	$s1	8($sp)		# $s1: Table size
+	sw	$s2	12($sp)		# $s2: Entrance X
+	sw	$s3	16($sp)		# $s3: Entrance Y
+	sw	$s4	20($sp)		# $s4: Current X
+	sw	$s5	24($sp)		# $s5: Current Y
+	sw	$s6	28($sp)		# $s6: Temporary direction storage
+
+	move	$s0	$a0
+	move	$s1	$a1
+	move	$s2	$a2
+	move	$s3	$a3
+	move	$s4	$a2
+	move	$s5	$a3
+
+	jal	CalcAddress
+	move	$a0	$v0
+	li	$a1	7
+	jal	SetFlag
+
+	__Generate_Loop:
+		# Stack the current cell
+		subu	$sp	$sp	8
+		sw	$s4	($sp)
+		sw	$s5	4($sp)
+
+		__Generate_Loop_NoStack:
+		move	$a0	$s0
+		move	$a1	$s1
+		move	$a2	$s4
+		move	$a3	$s5
+		jal	GenerateNextDirection
+		move	$s6	$v0
+		beq	$s6	-1	__Generate_CheckUnstack
+		jal	CalcAddress
+		move	$a0	$v0
+		move	$a1	$s6
+		jal	UnsetFlag	# Destroy the wall!
+
+		move	$a0	$s4
+		move	$a1	$s5
+		move	$a2	$s6
+		jal	MoveCell		# Move in the next cell
+		move	$s4	$v0
+		move	$s5	$v1
+		xori	$s6	$s6	2	# and use the opposite direction
+
+		move	$a0	$s0
+		move	$a1	$s1
+		move	$a2	$s4
+		move	$a3	$s5
+		jal	CalcAddress
+
+		move	$a0	$v0
+		move	$a1	$s6	# Destroy the second wall
+		jal	UnsetFlag
+		li	$a1	7	# and mark the cell as visited
+		jal	SetFlag
+
+		j	__Generate_Loop
+
+		# Unstack the previous cell
+		__Generate_Unstack:
+		lw	$s4	($sp)
+		lw	$s5	4($sp)
+		addu	$sp	$sp	8
+		j	__Generate_Loop_NoStack
+
+		__Generate_CheckUnstack:
+		bne	$s2	$s4	__Generate_Unstack
+		bne	$s3	$s5	__Generate_Unstack
+		# We're on the entrance without available cell, we finished the generation!
+		j	__Generate_End
+
+	__Generate_End:
+	lw	$ra	0($sp)
+	lw	$s0	4($sp)
+	lw	$s1	8($sp)
+	lw	$s2	12($sp)
+	lw	$s3	16($sp)
+	lw	$s4	20($sp)
+	lw	$s5	24($sp)
+	lw	$s6	28($sp)
+	addu	$sp	$sp	32
+	jr	$ra
 
 # Generates the entrance and the exit of the labyrinth
 # @param	$a0	Table address
@@ -817,7 +908,7 @@ GenerateExits:
 	sw	$s2	12($sp)		# $s2: Entrance column
 	sw	$s3	16($sp)		# $s3: Entrance cell
 	sw	$s4	20($sp)		# $s4: Exit column
-	sw	$s5	24($sp)		# $s4: Exit cell
+	sw	$s5	24($sp)		# $s5: Exit cell
 
 # Body
 	move	$s0	$a0	# Table address
