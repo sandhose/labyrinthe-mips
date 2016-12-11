@@ -863,13 +863,6 @@ GenerateLabyrinth:
 
 	# Main generation loop
 	__Generate_Loop:
-		# Stack the current cell
-		subu	$sp	$sp	8
-		sw	$s4	($sp)
-		sw	$s5	4($sp)
-
-		__Generate_Loop_NoStack:
-
 		# Compute the next direction to go
 		move	$a0	$s0
 		move	$a1	$s1
@@ -881,6 +874,11 @@ GenerateLabyrinth:
 
 		# If no direction is available (= -1), unstack to the previous cell
 		beq	$s6	-1	__Generate_CheckUnstack
+
+		# Stack the current cell
+		subu	$sp	$sp	8
+		sw	$s4	($sp)
+		sw	$s5	4($sp)
 
 		# Destroy the wall of the current cell in the direction
 		jal	CalcAddress
@@ -928,7 +926,7 @@ GenerateLabyrinth:
 		lw	$s5	4($sp)
 		addu	$sp	$sp	8
 		# ...and loop without re-stacking the cell
-		j	__Generate_Loop_NoStack
+		j	__Generate_Loop
 
 
 	__Generate_End:
@@ -975,11 +973,6 @@ SolveLabyrinth:
 
 	# Main generation loop
 	__Solve_Loop:
-		# Stack the current cell
-		subu	$sp	$sp	8
-		sw	$s4	($sp)
-		sw	$s5	4($sp)
-
 		# Compute the next direction to go
 		move	$a0	$s0
 		move	$a1	$s1
@@ -991,6 +984,12 @@ SolveLabyrinth:
 
 		# If no direction is available (= -1), unstack to the previous cell
 		beq	$s6	-1	__Solve_Unstack
+
+		# Stack the current cell
+		subu	$sp	$sp	8
+		sw	$s4	($sp)
+		sw	$s5	4($sp)
+
 
 		# Move to the next cell
 		move	$a0	$s4
@@ -1016,10 +1015,6 @@ SolveLabyrinth:
 		# Mark it as seen
 		li	$a1	7
 		jal	SetFlag
-
-		move	$a0	$s0
-		move	$a1	$s1
-		jal	PrintTable
 
 		# ...and loop!
 		j	__Solve_Loop
