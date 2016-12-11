@@ -837,6 +837,7 @@ GenerateLabyrinth:
 	sw	$s5	24($sp)		# $s5: Current Y
 	sw	$s6	28($sp)		# $s6: Temporary direction storage
 
+	# Load all arguments
 	move	$s0	$a0
 	move	$s1	$a1
 	move	$s2	$a2
@@ -844,11 +845,13 @@ GenerateLabyrinth:
 	move	$s4	$a2
 	move	$s5	$a3
 
+	# Mark the entrance as visited
 	jal	CalcAddress
 	move	$a0	$v0
 	li	$a1	7
 	jal	SetFlag
 
+	# Main generation loop
 	__Generate_Loop:
 		# Stack the current cell
 		subu	$sp	$sp	8
@@ -856,26 +859,36 @@ GenerateLabyrinth:
 		sw	$s5	4($sp)
 
 		__Generate_Loop_NoStack:
+
+		# Compute the next direction to go
 		move	$a0	$s0
 		move	$a1	$s1
 		move	$a2	$s4
 		move	$a3	$s5
 		jal	GenerateNextDirection
 		move	$s6	$v0
+
+		# If no direction is available (= -1), unstack to the previous cell
 		beq	$s6	-1	__Generate_CheckUnstack
+
+		# Destroy the wall of the current cell in the direction
 		jal	CalcAddress
 		move	$a0	$v0
 		move	$a1	$s6
 		jal	UnsetFlag	# Destroy the wall!
 
+		# Move to the next cell
 		move	$a0	$s4
 		move	$a1	$s5
 		move	$a2	$s6
-		jal	MoveCell		# Move in the next cell
+		jal	MoveCell
 		move	$s4	$v0
 		move	$s5	$v1
-		xori	$s6	$s6	2	# and use the opposite direction
 
+		# And compute the opposite direction with an XOR on 0b10
+		xori	$s6	$s6	2
+
+		# Destroy the wall & mark the cell as visited
 		move	$a0	$s0
 		move	$a1	$s1
 		move	$a2	$s4
@@ -888,20 +901,24 @@ GenerateLabyrinth:
 		li	$a1	7	# and mark the cell as visited
 		jal	SetFlag
 
+		# ...and loop!
 		j	__Generate_Loop
+
+		__Generate_CheckUnstack:
+		# Check if we can unstack (if we're not already on the entrance)
+		bne	$s2	$s4	__Generate_Unstack
+		bne	$s3	$s5	__Generate_Unstack
+		# We're on the entrance without available cell, we finished the generation!
+		j	__Generate_End
 
 		# Unstack the previous cell
 		__Generate_Unstack:
 		lw	$s4	($sp)
 		lw	$s5	4($sp)
 		addu	$sp	$sp	8
+		# ...and loop without re-stacking the cell
 		j	__Generate_Loop_NoStack
 
-		__Generate_CheckUnstack:
-		bne	$s2	$s4	__Generate_Unstack
-		bne	$s3	$s5	__Generate_Unstack
-		# We're on the entrance without available cell, we finished the generation!
-		j	__Generate_End
 
 	__Generate_End:
 	lw	$ra	0($sp)
@@ -1138,15 +1155,6 @@ RandomBetween:
 	move	$a0	$t6
 	jr	$ra
 
-
-
-# Function random_generator
-# Returns a random integer between 0 and 2^32-1
-# Parameters :
-# Returns : $v0: Random int
-random_generator:
-	li	$v0	41
-	jr	$ra
 
 __JR:
 	jr	$ra
