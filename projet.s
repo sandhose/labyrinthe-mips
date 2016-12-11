@@ -891,7 +891,7 @@ GenerateLabyrinth:
 		jal	CalcAddress
 		move	$a0	$v0
 		move	$a1	$s6
-		jal	UnsetFlag	# Destroy the wall!
+		jal	UnsetFlag	# Destroy the wall! Sad!
 
 		# Move to the next cell
 		move	$a0	$s4
@@ -1038,25 +1038,31 @@ SolveLabyrinth:
 
 
 	__Solve_EndLoop:
+		# Load the coordinates of the last cell from the solution path
+		# from the top of the stack
 		lw	$s4	($sp)
 		lw	$s5	4($sp)
 		addu	$sp	$sp	8
 
-		# Compute the cell address
+		# Compute the cell's address
 		move	$a0	$s0
 		move	$a1	$s1
 		move	$a2	$s4
 		move	$a3	$s5
 		jal	CalcAddress
 
+		# Is it the entrance ?
 		move	$a0	$v0
 		li	$a1	4
 		jal	GetFlag
+		# If true Then break
 		bnez	$v0	__Solve_End
 
+		# Else, mark it as a solution path
 		li	$a1	6
 		jal	SetFlag
 
+		# Loop until you reach the entrance
 		j	__Solve_EndLoop
 
 	__Solve_End:
