@@ -92,14 +92,11 @@ GenerateMode:
 	move	$a3	$s4
 	jal	GenerateLabyrinth
 
-	mulu	$s5	$s1	$s1
-	addu	$s5	$s5	$s0
+	# Clean the viewed flag
 	move	$a0	$s0
-	li	$a1	7
-	__GenerateMode_Loop:
-		jal	UnsetFlag
-		addu	$a0	$a0	1
-		blt	$a0	$s5	__GenerateMode_Loop
+	move	$a1	$s1
+	li	$a2	7
+	jal	CleanFlag
 
 	# Print memory
 	move	$a0	$s0
@@ -613,6 +610,28 @@ UnsetFlag:
 	and	$t0	$t0	$t1	# ...with an and...
 	sb	$t0	($a0)		# ...and save it
 	jr	$ra
+
+# Clean a given flag from the grid
+# @param	$a0	Table address
+# @param	$a1	Table size
+# @param	$a2	Flag to clear
+CleanFlag:
+	subu	$sp	$sp	8
+	sw	$ra	($sp)
+	sw	$s0	4($sp)
+
+	mul	$s0	$a1	$a1
+	addu	$s0	$s0	$a0	# Max address (= $a0 + $a1^2)
+	move	$a1	$a2
+
+	__CleanFlag_Loop:
+		addu	$a0	$a0	1
+		jal	UnsetFlag
+		blt	$a0	$s0	__CleanFlag_Loop
+
+	lw	$ra	($sp)
+	lw	$s0	4($sp)
+	addu	$sp	$sp	8
 
 # Move in a direction
 # @param	$a0	X coordinate
