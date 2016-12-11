@@ -1,6 +1,8 @@
 # projet.s
 
 .data
+
+# All the constant strings used in the menus:
 StrSolvedSuffix:
 	.asciiz ".resolu"
 StrTableWidth:
@@ -30,8 +32,7 @@ NewLine:
 # Entry point
 # It initializes the RNG, ask for the mode, and jumps to the correct mode
 __start:
-	# Start by seeding MARS' RNG...
-	# ...by getting OS' time...
+	# Start by seeding MARS' RNG by getting OS' time...
 	li	$v0	30
 	syscall
 	li	$a0	0
@@ -39,7 +40,6 @@ __start:
 	# ...and using it as seed
 	move	$a1	$v0
 	li	$v0	40
-	# li	$a0	0 # redundant
 	syscall
 
 	# Let's ask the user for the mode...
@@ -54,7 +54,8 @@ __start:
 #  - Opens the save file descriptor
 #  - Create the table in memory
 #  - Generate the entrance and exit
-#  - ???
+#  - Calls `GenerateLabyrinth`
+#  - Cleans the "seen" flag
 #  - Print the table to the console
 #  - Saves the labyrinth in the previously opened file descriptor
 GenerateMode:
@@ -78,18 +79,12 @@ GenerateMode:
 	move	$a1	$s1
 	jal	GenerateExits
 	# x and y coordinates of the entrance
-	move	$s3	$v0
-	move	$s4	$v1
 
-	# Print memory
+	# Let's generate that labyrinth!
 	move	$a0	$s0
 	move	$a1	$s1
-	jal	PrintTable
-
-	move	$a0	$s0
-	move	$a1	$s1
-	move	$a2	$s3
-	move	$a3	$s4
+	move	$a2	$v0
+	move	$a3	$v1
 	jal	GenerateLabyrinth
 
 	# Clean the viewed flag
@@ -122,6 +117,7 @@ GenerateMode:
 #  - Print the table to the console
 #  - Saves the labyrinth in the previously opened file descriptor
 SolveMode:
+	# First open the read and write file descriptors
 	jal	OpenSolveFDs
 	move	$s2	$v0	# Read file descriptor
 	move	$s3	$v1	# Write file descriptor
@@ -131,10 +127,12 @@ SolveMode:
 	move	$s0	$v0	# Table address
 	move	$s1	$v1	# Table size
 
+	# Find the entrance in the parsed labyrinth
 	move	$a0	$s0
 	move	$a1	$s1
 	jal	FindEntrance
 
+	# Let's resolve the labyrinth!
 	move	$a0	$s0
 	move	$a1	$s1
 	move	$a2	$v0
@@ -147,16 +145,18 @@ SolveMode:
 	li	$a2	7
 	jal	CleanFlag
 
-
+	# Print the solved labyrinth
 	move	$a0	$s0
 	move	$a1	$s1
 	jal	PrintTable
 
+	# And save it
 	move	$a0	$s0	# Table address
 	move	$a1	$s1	# Table size
 	move	$a2	$s3	# File descriptor
 	jal	SaveFile
 
+	# ...and we're done!
 	j	exit
 
 # Prints the menu
@@ -227,14 +227,15 @@ AskFilename:
 
 	# Let's check last byte if it is a newline (\n), and replace it with a null terminator (\0)
 	addu	$t0	$s0	$s1	# The address of the end of the string
-	lb	$t1	-1($t0)	# Save last string byte
+	lb	$t1	-1($t0)		# Save last string byte
 	lb	$t2	NewLine
 	bne	$t1	$t2	__NoNewLine	# Check if last byte is a newline
 	sb	$zero	-1($t0)
 	subu	$s1	$s1	1	# String length is now one less
 	__NoNewLine:
 
-	move	$v0	$s1	# Return the filename's length
+	move	$v0	$s1		# Return the filename's length
+
 # Epilogue
 	lw	$ra	($sp)
 	lw	$s0	4($sp)
@@ -249,6 +250,7 @@ AddSolvedSuffix:
 	la	$t1	StrSolvedSuffix
 	addu	$t2	$a0	$a1
 
+	# Loop through all letters of the suffix and copy them to the string
 	__Loop_AddSolvedSuffix:
 		lb	$t3	($t1)
 		sb	$t3	($t2)
@@ -277,10 +279,12 @@ OpenSolveFDs:
 
 # Body
 	__OpenSolveFDs:
+	# Ask for the file name
 	move	$a0	$s0
 	jal	AskFilename
 	move	$s1	$v0	# Store the length of this filename
 
+	# Open the file for reading
 	li	$v0	13
 	move	$a0	$s0
 	li	$a1	0	# Open for reading
@@ -290,10 +294,12 @@ OpenSolveFDs:
 	bltz	$v0	__OpenError	# Error while reading file
 	move	$s2	$v0	# Save file descriptor for later
 
+	# Add the solved suffix to the file name
 	move	$a0	$s0
 	move	$a1	$s1
 	jal	AddSolvedSuffix
 
+	# Open the file for writing
 	li	$v0	13
 	move	$a0	$s0
 	li	$a1	1
@@ -334,9 +340,11 @@ OpenGenerateFD:
 
 # Body
 	__OpenGenerateFD:
+	# Ask for the file name
 	move	$a0	$s0
 	jal	AskFilename
 
+	# Open the file for writing
 	move	$a0	$s0	# Pass the string as syscall argument
 	li	$v0	13
 	li	$a1	1	# Open for writing
@@ -481,6 +489,10 @@ SaveNumberToAscii:
 	jr	$ra
 
 # Save a labyrinth to a file descriptor
+#
+# It first write the entire string to a buffer
+# and then write this buffer to the filedescriptor
+# (also closes the file descriptor)
 # @param	$a0	Table address
 # @param	$a1	Table size
 # @param	$a2	Save file descriptor
@@ -718,7 +730,7 @@ FindEntrance:
 # @param	$a1	Size
 # @param	$a2	x
 # @param	$a3	y
-# Returns : 	$v0	Boolean
+# @return 	$v0	Boolean
 IsOutOfBounds:
 	bltz	$a2	__True
 	bge	$a2	$a1	__True
@@ -1165,7 +1177,7 @@ GenerateExits:
 
 
 
-# Function PrintTable
+# Print the labyrinth in the console
 # @param 	$a0 	Table address
 # 		$a1 	Table size
 # @pre		Address >=0
@@ -1204,8 +1216,15 @@ PrintTable:
 			bge	$t5	$t1	__Fin_Loop_PrintLine
 			add	$t4	$t0	$t3	# t4: Address of the first int of the table + offset
 			# Print integer in memory at address $t4
-			lbu	$a0	0($t4)
+			lbu	$t6	0($t4)
+			li	$t7	10
+			div	$t6	$t7
 			li	$v0	1
+
+			# Prints with leading zero
+			mflo	$a0
+			syscall
+			mfhi	$a0
 			syscall
 			jal	PrintSpace
 
@@ -1227,56 +1246,44 @@ __Fin_Loop_PrintTable:
 
 
 
-# Function PrintNewline
-# Parameters:
-# Pre-conditions:
-# Returns:
+# Prints a space
 PrintSpace:
-# Body:
 	la	$a0	StrSpace
 	li	$v0	4
 	syscall
-# Epilogue:
+
 	jr	$ra
 
 
 
-# Function PrintNewline
-# Parameters:
-# Pre-conditions:
-# Returns:
+# Prints a new line
 PrintNewline:
-# Body:
 	la	$a0	NewLine
 	li	$v0	4
 	syscall
-# Epilogue:
+
 	jr	$ra
 
 
 
-# Function PrintInt
-# Parameters: $a0: Int to print
-# Pre-conditions:
-# Returns:
-
+# Prints an integer with a new line
+# @param	$a0	Int to print
 PrintInt:
-# Body:
 	li	$v0	1
 	syscall
 
 	la	$a0	NewLine
 	li	$v0	4
 	syscall
-# Epilogue:
+
 	jr	$ra
 
 
 # Returns a random integer included in [$a0,$a1[
-# Parameters :  $a0: Minimum
-# 		$a1: Maximum
+# @param	$a0	Minimum
+# @param	$a1	Maximum
 # Pre-conditions : 0 <= $a0 < $a1
-# Returns : $v0: Random int
+# @return	$v0	Random int
 RandomBetween:
 # Prologue
 	move	$t7	$a1
@@ -1303,9 +1310,11 @@ RandomBetween:
 
 __JR:
 	jr	$ra
+
 __True:
 	li	$v0	1
 	jr	$ra
+
 __False:
 	li	$v0	0
 	jr	$ra
